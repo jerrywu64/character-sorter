@@ -1,7 +1,7 @@
 {% if character_lists %}
     <ul>
     {% for charlist in character_lists %}
-        <li><a href="{% url 'viewlist' charlist.id %}">{{ charlist.title }}</a></li>
+        <li><a href="{% url 'sorterinput:viewlist' charlist.id %}">{{ charlist.title }}</a></li>
     {% endfor %}
     </ul>
 {% else %}

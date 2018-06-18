@@ -1,1 +1,78 @@
-Editing {{ charlist }}
+<h1>Editing {{ charlist.title }}</h1>
+
+{% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
+
+<h2>Edit Characters</h2>
+<form action="{% url 'sorterinput:editlist' charlist.id %}" method="post">
+    {% csrf_token %}
+
+    <!--
+    <strong> Modify Characters </strong>
+    {% for character in charlist.character_set.all %}
+
+        <label for="existingname{{ character.id }}">Name</label><br />
+        <input type="text" name="existingname{{ character.id }}" 
+                           id="existingname{{ character.id }}"
+                           value="{{ character.name }}"/>
+
+        <label for="existingfandom{{ character.id }}">Fandom</label><br />
+        <input type="text" name="existingfandom{{ character.id }}" 
+                           id="existingfandom{{ character.id }}"
+                           value="{{ character.fandom }}"/>
+
+        <label for="existingdel{{ character.id }}">Delete?</label><br />
+        <input type="checkbox" name="existingdel{{ character.id }}" 
+                           id="existingdel{{ character.id }}"
+                           value="{{ character.id }}"/>
+
+    {% endfor %}
+
+    <strong> Add Character </strong>
+
+    <label for="newname{{ character.id }}">Name</label><br />
+    <input type="text" name="newname{{ character.id }}" 
+                       id="newname{{ character.id }}" />
+
+    <label for="newfandom{{ character.id }}">Fandom</label><br />
+    <input type="text" name="newfandom{{ character.id }}" 
+                       id="newfandom{{ character.id }}" />
+    -->
+    {{ modformset.management_form }}
+    {{ modformset.non_form_errors.as_ul }}
+    <table id="modformset" class="form">
+        {% for form in modformset.forms %}
+        {% if forloop.first %}
+        <thead><tr>
+                {% for field in form.visible_fields %}
+                <th>{{ field.label|capfirst }}</th>
+                {% endfor %}
+            </tr></thead>
+            {% endif %}
+            <tr class={% cycle "row1" "row2" %}>
+                {% for field in form.visible_fields %}
+                <td>
+                    {# Include the hidden fields in the form #}
+                    {% if forloop.first %}
+                    {% for hidden in form.hidden_fields %}
+                    {{ hidden }}
+                    {% endfor %}
+                    {% endif %}
+                    {{ field.errors.as_ul }}
+                    {{ field }}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+    </table>
+    <input type="submit" value="Save!" />
+</form>
+<h2>Add Character</h2>
+
+<form action="{% url 'sorterinput:editlist' charlist.id %}" method="post">
+    {% csrf_token %}
+    {{ addform }}
+
+    <input type="submit" value="Add!" />
+</form>
+
+<a href="{% url 'sorterinput:viewlist' charlist.id %}">Done editing</a>
