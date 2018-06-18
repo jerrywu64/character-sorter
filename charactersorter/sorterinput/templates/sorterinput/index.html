@@ -1,0 +1,9 @@
+{% if character_lists %}
+    <ul>
+    {% for charlist in character_lists %}
+        <li><a href="{% url 'viewlist' charlist.id %}">{{ charlist.title }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>No character lists are available.</p>
+{% endif %}
