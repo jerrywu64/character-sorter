@@ -1,25 +1,24 @@
+# pylint: disable-msg=too-many-ancestors
 # from django.shortcuts import render
 from django.http import HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
-
+from django.views import generic
 
 from .forms import ModifyCharFormset, AddCharForm
 from .models import CharacterList, Character
 
-def index(request):
-    character_lists = CharacterList.objects.all()
-    context = {
-        "character_lists": character_lists,
-    }
-    return render(request, "sorterinput/index.html", context)
+class IndexView(generic.ListView):
+    template_name = "sorterinput/index.html"
+    context_object_name = "character_lists"
 
-def viewlist(request, list_id):
-    charlist = get_object_or_404(CharacterList, pk=list_id)
-    context = {
-        "charlist": charlist,
-    }
-    return render(request, "sorterinput/view.html", context)
+    def get_queryset(self):
+        return CharacterList.objects.all()
+
+class ViewListView(generic.DetailView):
+    model = CharacterList
+    template_name = "sorterinput/view.html"
+    context_object_name = "charlist"
 
 def editlist(request, list_id):
     charlist = get_object_or_404(CharacterList, pk=list_id)

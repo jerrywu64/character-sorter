@@ -1,3 +1,17 @@
-{{ charlist }}
-<a href="{% url 'sorterinput:editlist' charlist.id %}">Edit</a>
+<h1>Viewing list {{ charlist.title }}
+</h1>
 
+
+<h2>Owned by: {{ charlist.owner }}</h2>
+<h2>Characters:
+<a href="{% url 'sorterinput:editlist' charlist.id %}">Edit</a>
+</h2>
+<ul>
+{% for char in charlist.character_set.all %}
+<li>
+<strong>{{ char.name }}</strong> from <strong>{{ char.fandom }}</strong>
+</li>
+{% endfor %}
+</ul>
+
+<p><a href="{% url 'sorterinput:index' %}">Back to lists</a></p>

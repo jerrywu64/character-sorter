@@ -15,8 +15,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+import sorterinput
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('sorterinput/', include('sorterinput.urls'))
+    path('sorterinput/', include('sorterinput.urls')),
+    path("", sorterinput.views.IndexView.as_view())
 ]

@@ -4,7 +4,7 @@ from . import views
 
 app_name = "sorterinput"
 urlpatterns = [
-    path('', views.index, name='index'),
-    path('<int:list_id>/', views.viewlist, name='viewlist'),
+    path('', views.IndexView.as_view(), name='index'),
+    path('<int:pk>/', views.ViewListView.as_view(), name='viewlist'),
     path('<int:list_id>/edit/', views.editlist, name='editlist'),
 ]
