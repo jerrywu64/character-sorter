@@ -1,0 +1,9 @@
+Make interface more spiffy
+Allow undo last sort record
+Allow create new list
+Allow create new user
+User logins
+enforce only view logged in users
+insertion: maintain already sorted people when deleting
+
+Write tournament sorter, support ratings and no contest?
