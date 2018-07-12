@@ -31,22 +31,19 @@ class InsertionSortControllerTest(TestCase):
             self.characters.append(char)
             char.save()
 
-        self.controller = InsertionSortController()
-        self.controller.charlist = self.charlist
-        self.controller.save()
+        self.controller = InsertionSortController
 
     def test_sort(self):
         desired_order = [5, 2, 3, 1, 6, 4]
         comparisons_left = 11  # 0 + 1 + 2 + 2 + 3 + 3
-        while self.controller.get_next_comparison() is not None:
+        while self.controller.get_next_comparison(self.charlist) is not None:
             self.assertGreaterEqual(
                 comparisons_left, 0,
                 msg="Insertion sort was too inefficient!")
-            char1, char2 = self.controller.get_next_comparison()
+            char1, char2 = self.controller.get_next_comparison(self.charlist)
             self.controller.register_comparison(
-                char1, char2,
+                self.charlist, char1, char2,
                 desired_order.index(char1) < desired_order.index(char2))
-        char_ranks = self.controller.get_char_ranks()
-        for rank, char_id in enumerate(desired_order):
-            self.assertEqual(
-                rank, char_ranks[char_id])
+        sorted_chars = self.controller.get_sorted_chars(self.charlist)
+        for char_id, sorted_id in zip(desired_order, sorted_chars):
+            self.assertEqual(char_id, sorted_id)

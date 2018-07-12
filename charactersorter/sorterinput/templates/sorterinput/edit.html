@@ -6,37 +6,6 @@
 <form action="{% url 'sorterinput:editlist' charlist.id %}" method="post">
     {% csrf_token %}
 
-    <!--
-    <strong> Modify Characters </strong>
-    {% for character in charlist.character_set.all %}
-
-        <label for="existingname{{ character.id }}">Name</label><br />
-        <input type="text" name="existingname{{ character.id }}" 
-                           id="existingname{{ character.id }}"
-                           value="{{ character.name }}"/>
-
-        <label for="existingfandom{{ character.id }}">Fandom</label><br />
-        <input type="text" name="existingfandom{{ character.id }}" 
-                           id="existingfandom{{ character.id }}"
-                           value="{{ character.fandom }}"/>
-
-        <label for="existingdel{{ character.id }}">Delete?</label><br />
-        <input type="checkbox" name="existingdel{{ character.id }}" 
-                           id="existingdel{{ character.id }}"
-                           value="{{ character.id }}"/>
-
-    {% endfor %}
-
-    <strong> Add Character </strong>
-
-    <label for="newname{{ character.id }}">Name</label><br />
-    <input type="text" name="newname{{ character.id }}" 
-                       id="newname{{ character.id }}" />
-
-    <label for="newfandom{{ character.id }}">Fandom</label><br />
-    <input type="text" name="newfandom{{ character.id }}" 
-                       id="newfandom{{ character.id }}" />
-    -->
     {{ modformset.management_form }}
     {{ modformset.non_form_errors.as_ul }}
     <table id="modformset" class="form">

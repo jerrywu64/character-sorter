@@ -5,6 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.views import generic
 
+import controller.models
 from .forms import ModifyCharFormset, AddCharForm
 from .models import CharacterList, Character
 
@@ -15,10 +16,23 @@ class IndexView(generic.ListView):
     def get_queryset(self):
         return CharacterList.objects.all()
 
-class ViewListView(generic.DetailView):
-    model = CharacterList
-    template_name = "sorterinput/view.html"
-    context_object_name = "charlist"
+def get_list_and_class(list_id):
+    charlist = get_object_or_404(CharacterList, pk=list_id)
+    controller_cls_name = charlist.get_controller_class_name()
+    controller_cls = controller.models.CONTROLLER_TYPES[controller_cls_name]
+    return charlist, controller_cls
+
+def viewlist(request, list_id):
+    charlist, controller_cls = get_list_and_class(list_id)
+    sorted_char_ids = controller_cls.get_sorted_chars(charlist)
+    chars = Character.objects.filter(id__in=sorted_char_ids)
+    chars_by_id = {char.id: char for char in chars}
+    sorted_chars = [chars_by_id[char_id] for char_id in sorted_char_ids]
+    context = {
+        "charlist": charlist,
+        "sortedchars": sorted_chars,
+    }
+    return render(request, "sorterinput/view.html", context)
 
 def editlist(request, list_id):
     charlist = get_object_or_404(CharacterList, pk=list_id)
@@ -45,3 +59,33 @@ def editlist(request, list_id):
         "addform": addform,
     }
     return render(request, "sorterinput/edit.html", context)
+
+def sortlist(request, list_id):
+    charlist, controller_cls = get_list_and_class(list_id)
+    error_msg = None
+    if request.method == "POST":
+        try:
+            result = int(request.POST["sort"])
+            controller_cls.register_comparison(
+                charlist,
+                request.POST["char1"], request.POST["char2"],
+                result)
+            return HttpResponseRedirect(reverse(
+                'sorterinput:sortlist', args=(list_id,)))
+        except KeyError:
+            error_msg = "You didn't select a choice."
+    comparison = controller_cls.get_next_comparison(charlist)
+    if comparison is None:
+        char1, char2 = None, None
+    else:
+        char1, char2 = comparison
+        char1 = Character.objects.get(pk=char1)
+        char2 = Character.objects.get(pk=char2)
+    context = {
+        "charlist": charlist,
+        "char1": char1,
+        "char2": char2,
+        "done": comparison is None,
+        "error_message": error_msg
+    }
+    return render(request, "sorterinput/sort.html", context)

@@ -3,37 +3,35 @@ from django.db import models
 
 import sorterinput.models
 
-class Controller(models.Model):
+class Controller(abc.ABC):
+
+    @classmethod
     @abc.abstractmethod
-    def get_char_ranks(self):
-        """Get a dict mapping char id to char rank."""
+    def get_sorted_chars(cls, charlist):
+        """Get a list of char IDs, sorted from best to worst."""
         pass
 
+    @classmethod
     @abc.abstractmethod
-    def is_ascending(self):
-        """Return True if a low rank is best."""
-        pass
-
-    @abc.abstractmethod
-    def get_next_comparison(self):
+    def get_next_comparison(cls, charlist):
         """Retrieves the next pair of characters to compare, or None"""
         pass
 
+    @classmethod
     @abc.abstractmethod
-    def register_comparison(self, char1, char2, value):
+    def register_comparison(cls, charlist, char1_id, char2_id, value):
         """Registers a comparison between two characters. 1 means char1 wins,
         -1 means char2 wins, 0 means draw."""
         pass
 
 
 class InsertionSortController(Controller):
-    charlist = models.ForeignKey(
-        sorterinput.models.CharacterList, on_delete=models.CASCADE)
 
-    def insertion_sort(self, characters=None):
-        characters = characters or self.charlist.character_set.all(
+    @staticmethod
+    def insertion_sort(charlist, characters=None):
+        characters = characters or charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        records = self.insertionsortrecord_set.all().values_list(
+        records = charlist.insertionsortrecord_set.all().values_list(
             "char1__id", "char2__id", "value")
         record_dict = {}
         for char1, char2, value in records:
@@ -61,36 +59,38 @@ class InsertionSortController(Controller):
                     else:
                         low = mid + 1
                 else:
+                    sorted_chars.insert(high, character)
                     return sorted_chars, compair
-            sorted_chars.insert(low, character)
+            sorted_chars.insert(high, character)
         return sorted_chars, None
 
-    def is_ascending(self):
-        return True
-
-    def get_char_ranks(self):
-        characters = self.charlist.character_set.all(
+    @classmethod
+    def get_sorted_chars(cls, charlist):
+        characters = charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        sorted_chars = self.insertion_sort(characters)[0]
-        return {
-            char_id: sorted_chars.index(char_id) if char_id in sorted_chars
-                     else i
-            for i, char_id in enumerate(characters)}
+        sorted_chars = cls.insertion_sort(charlist, characters)[0]
+        sorted_char_set = set(sorted_chars)
+        for char_id in characters:
+            if char_id not in sorted_char_set:
+                sorted_chars.append(char_id)
+        return sorted_chars
 
-    def get_next_comparison(self):
-        return self.insertion_sort()[1]
+    @classmethod
+    def get_next_comparison(cls, charlist):
+        return cls.insertion_sort(charlist)[1]
 
-    def register_comparison(self, char1, char2, value):
+    @classmethod
+    def register_comparison(cls, charlist, char1_id, char2_id, value):
         record = InsertionSortRecord()
-        record.controller = self
-        record.char1 = sorterinput.models.Character.objects.get(id=char1)
-        record.char2 = sorterinput.models.Character.objects.get(id=char2)
+        record.controller = charlist
+        record.char1 = sorterinput.models.Character.objects.get(id=char1_id)
+        record.char2 = sorterinput.models.Character.objects.get(id=char2_id)
         record.value = value
         record.save()
 
 class InsertionSortRecord(models.Model):
     controller = models.ForeignKey(
-        InsertionSortController, on_delete=models.CASCADE)
+        sorterinput.models.CharacterList, on_delete=models.CASCADE)
     char1 = models.ForeignKey(
         sorterinput.models.Character, on_delete=models.CASCADE,
         related_name="insertionsortrecord1")
@@ -99,3 +99,10 @@ class InsertionSortRecord(models.Model):
         related_name="insertionsortrecord2")
 
     value = models.IntegerField()
+
+    def __str__(self):
+        return "{} vs {}".format(self.char1, self.char2)
+
+CONTROLLER_TYPES = {
+    "InsertionSortController": InsertionSortController
+}
