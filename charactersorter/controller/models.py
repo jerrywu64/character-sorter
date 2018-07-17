@@ -100,11 +100,14 @@ class InsertionSortController(Controller):
     def get_annotations(cls, charlist):
         characters = charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        sorted_chars = cls.insertion_sort(charlist, characters)[0]
+        sorted_chars, compair = cls.insertion_sort(charlist, characters)
         sorted_char_set = set(sorted_chars)
-        return {
+        annotations = {
             char: None if char in sorted_char_set else "Unsorted"
             for char in characters}
+        if compair is not None:
+            annotations[compair[0]] = "Now Sorting"
+        return annotations
 
 
 class SortRecord(models.Model):
