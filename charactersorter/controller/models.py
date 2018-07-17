@@ -81,23 +81,23 @@ class InsertionSortController(Controller):
 
     @classmethod
     def register_comparison(cls, charlist, char1_id, char2_id, value):
-        record = InsertionSortRecord()
+        record = SortRecord()
         record.controller = charlist
         record.char1 = sorterinput.models.Character.objects.get(id=char1_id)
         record.char2 = sorterinput.models.Character.objects.get(id=char2_id)
         record.value = value
         record.save()
 
-class InsertionSortRecord(models.Model):
+class SortRecord(models.Model):
     controller = models.ForeignKey(
         sorterinput.models.CharacterList, on_delete=models.CASCADE)
     char1 = models.ForeignKey(
         sorterinput.models.Character, on_delete=models.CASCADE,
-        related_name="insertionsortrecord1")
+        related_name="sortrecord1")
     char2 = models.ForeignKey(
         sorterinput.models.Character, on_delete=models.CASCADE,
-        related_name="insertionsortrecord2")
-
+        related_name="sortrecord2")
+    timestamp = models.DateTimeField(auto_now_add=True)
     value = models.IntegerField()
 
     def __str__(self):

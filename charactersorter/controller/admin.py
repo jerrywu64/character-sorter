@@ -1,5 +1,5 @@
 from django.contrib import admin
 
-from .models import InsertionSortRecord
+from .models import SortRecord
 
-admin.site.register(InsertionSortRecord)
+admin.site.register(SortRecord)
