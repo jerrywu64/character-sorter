@@ -1,3 +1,4 @@
+{% load sorter_extras %}
 <h1>Viewing list {{ charlist.title }}
 </h1>
 
@@ -11,6 +12,9 @@
 {% for char in sortedchars %}
 <li>
 <strong>{{ char.name }}</strong> from <strong>{{ char.fandom }}</strong>
+{% if annotations|get_item:char.id is not None %}
+({{ annotations|get_item:char.id }})
+{% endif %}
 </li>
 {% endfor %}
 </ol>

@@ -24,6 +24,14 @@ class Controller(abc.ABC):
         -1 means char2 wins, 0 means draw."""
         pass
 
+    @classmethod
+    @abc.abstractmethod
+    def get_annotations(cls, charlist):
+        """Returns an annotation for each character, if any, e.g. whether the
+        character has been sorted or not. Returns a dict mapping character ID
+        to annotation, or None if that character has no annotation."""
+        pass
+
 
 class InsertionSortController(Controller):
 
@@ -87,6 +95,17 @@ class InsertionSortController(Controller):
         record.char2 = sorterinput.models.Character.objects.get(id=char2_id)
         record.value = value
         record.save()
+
+    @classmethod
+    def get_annotations(cls, charlist):
+        characters = charlist.character_set.all(
+            ).order_by("id").values_list("id", flat=True)
+        sorted_chars = cls.insertion_sort(charlist, characters)[0]
+        sorted_char_set = set(sorted_chars)
+        return {
+            char: None if char in sorted_char_set else "Unsorted"
+            for char in characters}
+
 
 class SortRecord(models.Model):
     controller = models.ForeignKey(

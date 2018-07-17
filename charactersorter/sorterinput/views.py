@@ -28,9 +28,11 @@ def viewlist(request, list_id):
     chars = Character.objects.filter(id__in=sorted_char_ids)
     chars_by_id = {char.id: char for char in chars}
     sorted_chars = [chars_by_id[char_id] for char_id in sorted_char_ids]
+    annotations = controller_cls.get_annotations(charlist)
     context = {
         "charlist": charlist,
         "sortedchars": sorted_chars,
+        "annotations": annotations,
     }
     return render(request, "sorterinput/view.html", context)
 
