@@ -2,4 +2,7 @@ from django.contrib import admin
 
 from .models import SortRecord
 
-admin.site.register(SortRecord)
+class SortRecordAdmin(admin.ModelAdmin):
+    readonly_fields = ('timestamp',)
+
+admin.site.register(SortRecord, SortRecordAdmin)

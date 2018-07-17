@@ -31,7 +31,7 @@ class InsertionSortController(Controller):
     def insertion_sort(charlist, characters=None):
         characters = characters or charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        records = charlist.insertionsortrecord_set.all().values_list(
+        records = charlist.sortrecord_set.all().values_list(
             "char1__id", "char2__id", "value")
         record_dict = {}
         for char1, char2, value in records:
