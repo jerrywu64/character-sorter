@@ -83,11 +83,24 @@ def sortlist(request, list_id):
         char1, char2 = comparison
         char1 = Character.objects.get(pk=char1)
         char2 = Character.objects.get(pk=char2)
+    try:
+        lastsort = controller.models.SortRecord.objects.filter(
+            charlist=charlist).order_by("-timestamp")[0]
+    except IndexError:
+        lastsort = None
     context = {
         "charlist": charlist,
         "char1": char1,
         "char2": char2,
         "done": comparison is None,
+        "lastsort": lastsort,
         "error_message": error_msg
     }
     return render(request, "sorterinput/sort.html", context)
+
+def undo(request, list_id):
+    lastsort = get_object_or_404(
+        controller.models.SortRecord, pk=int(request.POST["last"]))
+    lastsort.delete()
+    return HttpResponseRedirect(reverse(
+        'sorterinput:sortlist', args=(list_id,)))

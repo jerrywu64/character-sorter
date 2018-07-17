@@ -8,4 +8,6 @@ urlpatterns = [
     path('<int:list_id>/', views.viewlist, name='viewlist'),
     path('<int:list_id>/edit/', views.editlist, name='editlist'),
     path('<int:list_id>/sort/', views.sortlist, name='sortlist'),
+    path('<int:list_id>/undo/', views.undo, name='undo'),
+
 ]

@@ -90,7 +90,7 @@ class InsertionSortController(Controller):
     @classmethod
     def register_comparison(cls, charlist, char1_id, char2_id, value):
         record = SortRecord()
-        record.controller = charlist
+        record.charlist = charlist
         record.char1 = sorterinput.models.Character.objects.get(id=char1_id)
         record.char2 = sorterinput.models.Character.objects.get(id=char2_id)
         record.value = value
@@ -111,7 +111,7 @@ class InsertionSortController(Controller):
 
 
 class SortRecord(models.Model):
-    controller = models.ForeignKey(
+    charlist = models.ForeignKey(
         sorterinput.models.CharacterList, on_delete=models.CASCADE)
     char1 = models.ForeignKey(
         sorterinput.models.Character, on_delete=models.CASCADE,
