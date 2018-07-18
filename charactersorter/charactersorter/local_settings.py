@@ -10,3 +10,17 @@ SECRET_KEY = 'uw-6#+^z)4s6sxzpqtz7+@rgj1)t2*q7^u0u=c@cjjt6x^8a%b'
 DEBUG = True
 
 ALLOWED_HOSTS = []
+
+# Database
+# https://docs.djangoproject.com/en/2.0/ref/settings/#databases
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'charactersorter',
+        'USER': 'charsorter',
+        'PASSWORD': 'D8DSNSsyBW4DwqsxGfQYMquj',
+        'HOST': 'localhost',
+        'PORT': '',
+    }
+}
