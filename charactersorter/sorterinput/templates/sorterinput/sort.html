@@ -1,10 +1,14 @@
+{% load static %}
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script src="{% static 'sorterinput/js/sort.js' %}"></script>
+
 <h1>Sorting {{ charlist.title }}</h1>
 
 {% if done %}<p><strong>Done!</strong></p>
 {% else %}
 <h2>Choose the better one</h2>
 {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
-<form action="{% url 'sorterinput:sortlist' charlist.id %}" method="post">
+<form id="sort_form" action="{% url 'sorterinput:sortlist' charlist.id %}" method="post">
     {% csrf_token %}
     <input type="hidden" name="char1" id="char1" value="{{ char1.id }}" />
     <input type="hidden" name="char2" id="char2" value="{{ char2.id }}" />
@@ -20,16 +24,16 @@
                 Same</label></li>
     </ul>
 
-    <input type="submit" value="Submit!" />
+    <input type="submit" id="sort_submit" value="Submit!" />
 </form>
 
 {% endif %}
 
 {% if lastsort is not None %}
-<form action="{% url 'sorterinput:undo' charlist.id %}" method="post">
+<form id="undo_form" action="{% url 'sorterinput:undo' charlist.id %}" method="post">
     {% csrf_token %}
     <input type="hidden" name="last" id="last" value="{{ lastsort.id }}" />
-    <input type="submit" value="Undo last sort ({{ lastsort }})" />
+    <input type="submit" id="undo_submit" value="Undo last sort ({{ lastsort }})" />
 </form>
 {% endif %}
 
