@@ -3,3 +3,4 @@
 *.pyc
 env
 *prod_settings.py
+charactersorter/static
