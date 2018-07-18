@@ -1,7 +1,7 @@
 Make interface more spiffy
 fix equality
 batch add characters
-base template
+base template, disable double submit in add
 fix https
 Allow undo last sort record
 keyboard shortcuts/buttons?

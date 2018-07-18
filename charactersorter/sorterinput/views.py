@@ -85,7 +85,7 @@ def sortlist(request, list_id):
         char2 = Character.objects.get(pk=char2)
     try:
         lastsort = controller.models.SortRecord.objects.filter(
-            charlist=charlist).order_by("-timestamp")[0]
+            charlist=charlist).order_by("-timestamp", "-id")[0]
     except IndexError:
         lastsort = None
     context = {
