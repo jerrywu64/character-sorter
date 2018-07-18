@@ -6,7 +6,8 @@ from django.urls import reverse
 from django.views import generic
 
 import controller.models
-from .forms import ModifyCharFormset, AddCharForm
+from .forms import \
+    ModifyCharFormset, AddCharForm, ModifyCharlistFormset, AddCharlistForm
 from .models import CharacterList, Character
 
 class IndexView(generic.ListView):
@@ -21,6 +22,30 @@ def get_list_and_class(list_id):
     controller_cls_name = charlist.get_controller_class_name()
     controller_cls = controller.models.CONTROLLER_TYPES[controller_cls_name]
     return charlist, controller_cls
+
+def editcharlists(request):
+    if request.method == "POST":
+        modformset = ModifyCharlistFormset(request.POST)
+        addform = AddCharlistForm(request.POST)
+        if addform.is_valid():
+            addform.save()
+            return HttpResponseRedirect(reverse(
+                'sorterinput:editcharlists'))
+
+        if modformset.is_valid():
+            modformset.save()
+            return HttpResponseRedirect(reverse(
+                'sorterinput:editcharlists'))
+
+    else:
+        modformset = ModifyCharlistFormset(
+            queryset=CharacterList.objects.all())
+        addform = AddCharlistForm()
+    context = {
+        "modformset": modformset,
+        "addform": addform,
+    }
+    return render(request, "sorterinput/editlists.html", context)
 
 def viewlist(request, list_id):
     charlist, controller_cls = get_list_and_class(list_id)

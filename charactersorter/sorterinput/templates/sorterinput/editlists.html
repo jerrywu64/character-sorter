@@ -1,0 +1,45 @@
+{% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
+
+<h2>Edit Character Lists</h2>
+<form action="{% url 'sorterinput:editcharlists' %}" method="post">
+    {% csrf_token %}
+
+    {{ modformset.management_form }}
+    {{ modformset.non_form_errors.as_ul }}
+    <table id="modformset" class="form">
+        {% for form in modformset.forms %}
+        {% if forloop.first %}
+        <thead><tr>
+                {% for field in form.visible_fields %}
+                <th>{{ field.label|capfirst }}</th>
+                {% endfor %}
+            </tr></thead>
+            {% endif %}
+            <tr class={% cycle "row1" "row2" %}>
+                {% for field in form.visible_fields %}
+                <td>
+                    {# Include the hidden fields in the form #}
+                    {% if forloop.first %}
+                    {% for hidden in form.hidden_fields %}
+                    {{ hidden }}
+                    {% endfor %}
+                    {% endif %}
+                    {{ field.errors.as_ul }}
+                    {{ field }}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+    </table>
+    <input type="submit" value="Save!" />
+</form>
+<h2>Add Character List</h2>
+
+<form action="{% url 'sorterinput:editcharlists' %}" method="post">
+    {% csrf_token %}
+    {{ addform }}
+
+    <input type="submit" value="Add!" />
+</form>
+
+<a href="{% url 'sorterinput:index' %}">Done editing</a>

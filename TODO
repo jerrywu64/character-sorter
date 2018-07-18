@@ -1,15 +1,19 @@
-Make interface more spiffy
-fix equality
-batch add characters
-base template, disable double submit in add
+New Features:
+Write tournament sorter
+Allow no contest
+
+Security:
 fix https
-Allow undo last sort record
-keyboard shortcuts/buttons?
-deduplication
-Allow create new list/delete list
-Allow create new user
 User logins
 enforce only view logged in users
-insertion: maintain already sorted people when deleting
+Allow create new user
 
-Write tournament sorter, support ratings and no contest?
+Interface:
+base template, disable double submit in add
+batch add characters
+keyboard shortcuts/buttons?
+Make interface more spiffy
+
+Insertion Sort:
+fix equality
+insertion: maintain already sorted people when deleting
