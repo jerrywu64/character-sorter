@@ -3,8 +3,10 @@ from django.contrib.auth.models import User
 
 class CharacterList(models.Model):
     INSERTION = "IS"
+    GLICKO = "GL"
     CONTROLLER_CHOICES = (
         (INSERTION, "InsertionSortController"),
+        (GLICKO, "GlickoRatingController"),
     )
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=200)

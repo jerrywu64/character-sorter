@@ -1,5 +1,5 @@
 New Features:
-Write tournament sorter
+make controller bugs give better error messages
 Allow no contest
 
 Security:
