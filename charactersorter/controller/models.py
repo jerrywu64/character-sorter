@@ -1,5 +1,6 @@
 import abc
 import math
+import numpy as np
 from django.db import models
 from django.utils import timezone
 
@@ -46,16 +47,9 @@ class InsertionSortController(Controller):
     def insertion_sort(charlist, characters=None):
         characters = characters or charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        records = charlist.sortrecord_set.all().values_list(
-            "char1__id", "char2__id", "value")
-        record_dict = {}
-        for char1, char2, value in records:
-            # ensure that char1 is always greater
-            if char1 < char2:
-                temp = char1
-                char1 = char2
-                char2 = temp
-            record_dict[(char1, char2)] = value
+        last_matches = SortRecord.get_last_matches(charlist)
+        record_dict = {
+            chars: match.value for chars, match in last_matches.items()}
         sorted_chars = []
         for character in characters:
             # Binary insertion sort to insert character into
@@ -131,7 +125,7 @@ class GlickoRatingController(Controller):
     @classmethod
     def rd_after_time(cls, old_rd, old_time, new_time):
         if old_time is None:
-            return cls.DEFAULT_RD  
+            return cls.DEFAULT_RD
         delta_days = (new_time - old_time).total_seconds() / (3600 * 24)
         return min(math.sqrt(old_rd ** 2 + cls.RD_INCREASE_SCALE_SQ * delta_days),
                    cls.DEFAULT_RD)
@@ -139,7 +133,7 @@ class GlickoRatingController(Controller):
     @classmethod
     def g_of_rd(cls, rd):
         """See the Glicko paper for details. Something to do wtih Gaussians,
-        probably."""
+        probably. A high RD means a low g value."""
         return 1 / math.sqrt(1 + 3 * (cls.Q * rd / math.pi) ** 2)
 
     @staticmethod
@@ -154,10 +148,21 @@ class GlickoRatingController(Controller):
     def inv_dsquared_of_match(cls, g_rd_other, expected):
         """Calculates the value 1/d^2 for a match against an opponent of rating
         r_other with rating deviation rd_other. See paper for details. I think
-        this is the information given by the match."""
+        this is the information given by the match. A high RD of the opponent
+        or a highly stacked match gives a low inverse dsquared."""
         return (
             cls.Q * cls.Q * g_rd_other * g_rd_other *
             expected * (1 - expected))
+
+    @classmethod
+    def compute_values(cls, r, rd, r_other, rd_other):
+        g_rd_other = cls.g_of_rd(rd_other)
+        expected = cls.expected_result(r, r_other, g_rd_other)
+        inv_dsquared = cls.inv_dsquared_of_match(g_rd_other, expected)
+        inv_rdsquared = 1 / (rd * rd)
+        new_rdsquared = 1 / (inv_rdsquared + inv_dsquared)
+        update_factor = cls.Q * new_rdsquared * g_rd_other
+        return expected, inv_dsquared, new_rdsquared, update_factor
 
     @classmethod
     def process_record(cls, record, rating_info):
@@ -176,20 +181,16 @@ class GlickoRatingController(Controller):
         new_rds = []
         for i, (r, rd, r_other, rd_other, result) in enumerate(zip(
                 rs, rds, reversed(rs), reversed(rds), results)):
-            g_rd_other = cls.g_of_rd(rd_other)
-            expected = cls.expected_result(r, r_other, g_rd_other)
-            inv_dsquared = cls.inv_dsquared_of_match(g_rd_other, expected)
-            inv_rdsquared = 1 / (rd * rd)
+            expected, _, new_rdsquared, update_factor = cls.compute_values(
+                r, rd, r_other, rd_other)
             new_rs.append(r + (
-                cls.Q / (inv_rdsquared + inv_dsquared)
-                * g_rd_other * (result - expected)))
-            new_rds.append(1 / math.sqrt(
-                inv_rdsquared + inv_dsquared))
+                update_factor * (result - expected)))
+            new_rds.append(math.sqrt(new_rdsquared))
         for i, r, rd in zip(ids, new_rs, new_rds):
             rating_info[i] = (r, rd, timestamp)
 
     @classmethod
-    def compute_ratings(cls, charlist, interval=False):
+    def compute_ratings(cls, charlist, raw=False, interval=False):
         records = charlist.sortrecord_set.all().order_by("timestamp")
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         rating_info = {
@@ -197,16 +198,33 @@ class GlickoRatingController(Controller):
             for char_id in char_ids}
         for record in records:
             cls.process_record(record, rating_info)
-        ratings = {}
+        # Make rds decay to the present
         now = timezone.now()
-        for char_id in char_ids:
-            # Return rating - 2 * rd
-            r, rd, ts = rating_info[char_id]
-            # Update the rd
-            rd = cls.rd_after_time(rd, ts, now)
-            ratings[char_id] = (
-                (r - 2 * rd) if not interval else (r - 2 * rd, r + 2 *rd))
-        return ratings
+        for char_id, (r, rd, ts) in rating_info.items():
+            rating_info[char_id] = r, cls.rd_after_time(rd, ts, now), None
+        if raw:
+            return rating_info
+        else:
+            ratings = {}
+            for char_id in char_ids:
+                # Return rating - 2 * rd
+                r, rd, _ = rating_info[char_id]
+                ratings[char_id] = (
+                    (r - 2 * rd) if not interval else (r - 2 * rd, r + 2 *rd))
+            return ratings
+
+    @classmethod
+    def get_match_weight(cls, char_id, opponent_id, rating_info, last_matches):
+        """How much do we want this match to occur? We'd like a match which
+        will minimize char_id's rd while avoiding repeated matchups."""
+        r, rd, _ = rating_info[char_id]
+        r_other, rd_other, _ = rating_info[opponent_id]
+        _, inv_dsquared, _, _ = cls.compute_values(r, rd, r_other, rd_other)
+        last_match = last_matches.get((char_id, opponent_id), None)
+        days_since_last = (
+            cls.RD_RESET_TIME if last_match is None else
+            timezone.now() - last_match.timestamp)
+        return days_since_last * inv_dsquared
 
     @classmethod
     def get_sorted_chars(cls, charlist):
@@ -218,7 +236,19 @@ class GlickoRatingController(Controller):
     @abc.abstractmethod
     def get_next_comparison(cls, charlist):
         """Retrieves the next pair of characters to compare, or None"""
-        return None  # tbd
+        char_ids = charlist.character_set.all().values_list("id", flat=True)
+        if len(char_ids) < 2:
+            return None
+        rating_info = cls.compute_ratings(charlist, raw=True)
+        # Pick a random first character
+        char_id = np.random.choice(char_ids)
+        # Select their opponent:
+        opponents = [opponent for opponent in char_ids if opponent != char_id]
+        last_matches = SortRecord.get_last_matches(charlist)
+        opponent_weights = np.array([cls.get_match_weight(
+            char_id, opponent, rating_info, last_matches) for opponent in opponents])
+        opponent_weights /= np.sum(opponent_weights)
+        return char_id, np.random.choice(opponents, p=opponent_weights)
 
     @classmethod
     @abc.abstractmethod
@@ -226,7 +256,8 @@ class GlickoRatingController(Controller):
         """Returns an annotation for each character, if any, e.g. whether the
         character has been sorted or not. Returns a dict mapping character ID
         to annotation, or None if that character has no annotation."""
-        return cls.compute_ratings(charlist, interval=False)
+        ratings = cls.compute_ratings(charlist, interval=False)
+        return {i: int(r) for i, r in ratings.items()}
 
 
 class SortRecord(models.Model):
@@ -240,6 +271,17 @@ class SortRecord(models.Model):
         related_name="sortrecord2")
     timestamp = models.DateTimeField(auto_now_add=True)
     value = models.IntegerField()
+
+    @staticmethod
+    def get_last_matches(charlist):
+        """Returns a dict mapping (char1, char2) to the most recent match among
+        the charlist's matches."""
+        last_matches = {}
+        sorted_records = charlist.sortrecord_set.all().order_by("timestamp")
+        for record in sorted_records:
+            last_matches[(record.char1, record.char2)] = record
+            last_matches[(record.char2, record.char1)] = record
+        return last_matches
 
     def __str__(self):
         return "{} vs {}".format(self.char1, self.char2)
