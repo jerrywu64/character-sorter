@@ -48,8 +48,13 @@ class InsertionSortController(Controller):
         characters = characters or charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
         last_matches = SortRecord.get_last_matches(charlist)
-        record_dict = {
-            chars: match.value for chars, match in last_matches.items()}
+        record_dict = {}
+        for (char1, char2), match in last_matches.items():
+            if match.char1 == char1:
+                record_dict[(char1.id, char2.id)] = match.value
+            else:
+                assert match.char2 == char1
+                record_dict[(char1.id, char2.id)] = -match.value
         sorted_chars = []
         for character in characters:
             # Binary insertion sort to insert character into
