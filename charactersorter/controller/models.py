@@ -49,12 +49,12 @@ class InsertionSortController(Controller):
             ).order_by("id").values_list("id", flat=True)
         last_matches = SortRecord.get_last_matches(charlist)
         record_dict = {}
-        for (char1, char2), match in last_matches.items():
-            if match.char1 == char1:
-                record_dict[(char1.id, char2.id)] = match.value
+        for (char1_id, char2_id), match in last_matches.items():
+            if match.char1.id == char1_id:
+                record_dict[(char1_id, char2_id)] = match.value
             else:
-                assert match.char2 == char1
-                record_dict[(char1.id, char2.id)] = -match.value
+                assert match.char2.id == char1_id
+                record_dict[(char1_id, char2_id)] = -match.value
         sorted_chars = []
         for character in characters:
             # Binary insertion sort to insert character into
@@ -226,6 +226,7 @@ class GlickoRatingController(Controller):
         r_other, rd_other, _ = rating_info[opponent_id]
         _, inv_dsquared, _, _ = cls.compute_values(r, rd, r_other, rd_other)
         last_match = last_matches.get((char_id, opponent_id), None)
+        # TODO: isn't this always none?
         days_since_last = (
             cls.RD_RESET_TIME if last_match is None else
             min((timezone.now() - last_match.timestamp).total_seconds()
@@ -281,13 +282,13 @@ class SortRecord(models.Model):
 
     @staticmethod
     def get_last_matches(charlist):
-        """Returns a dict mapping (char1, char2) to the most recent match among
+        """Returns a dict mapping (char1_id, char2_id) to the most recent match among
         the charlist's matches."""
         last_matches = {}
         sorted_records = charlist.sortrecord_set.all().order_by("timestamp")
         for record in sorted_records:
-            last_matches[(record.char1, record.char2)] = record
-            last_matches[(record.char2, record.char1)] = record
+            last_matches[(record.char1.id, record.char2.id)] = record
+            last_matches[(record.char2.id, record.char1.id)] = record
         return last_matches
 
     def __str__(self):

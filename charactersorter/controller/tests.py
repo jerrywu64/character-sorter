@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 from sorterinput.models import CharacterList, Character
-from .models import InsertionSortController, GlickoRatingController
+from .models import InsertionSortController, GlickoRatingController, SortRecord
 
 class ControllerTest(TestCase):
     def __init__(self, *args, **kwargs):
@@ -68,6 +68,16 @@ class ControllerTest(TestCase):
             rec.timestamp = ts
             rec.save()
 
+    def assertSorted(self):
+        """Verifies that the characters are sorted."""
+        sorted_chars = self.controller.get_sorted_chars(self.charlist)
+        self.assertEqual(len(sorted_chars), len(self.desired_order))
+        # Verify that each sorted char is at least as good as the next
+        for char1_id, char2_id in zip(sorted_chars, sorted_chars[1:]):
+            self.assertLessEqual(
+                self.desired_order[char1_id], self.desired_order[char2_id],
+                "Got incorrect ranking {}".format(sorted_chars))
+
 
 class InsertionSortControllerTest(ControllerTest):
     def __init__(self, *args, **kwargs):
@@ -86,13 +96,7 @@ class InsertionSortControllerTest(ControllerTest):
             comparisons_left -= 1
             char1, char2 = self.controller.get_next_comparison(self.charlist)
             self.register_comparison(char1, char2)
-        sorted_chars = self.controller.get_sorted_chars(self.charlist)
-        self.assertEqual(len(sorted_chars), len(self.desired_order))
-        # Verify that each sorted char is at least as good as the next
-        for char1_id, char2_id in zip(sorted_chars, sorted_chars[1:]):
-            self.assertLessEqual(
-                self.desired_order[char1_id], self.desired_order[char2_id],
-                "Got incorrect ranking {}".format(sorted_chars))
+        self.assertSorted()
 
 class GlickoRatingControllerTest(ControllerTest):
 
@@ -154,3 +158,26 @@ class GlickoRatingControllerTest(ControllerTest):
                 self.assertEqual(new_r_2, old_r_2)
             self.assertLess(new_rd_1, old_rd_1)
             self.assertLess(new_rd_2, old_rd_2)
+
+    def test_rating_convergence(self):
+        """Ensure that after a sufficiently large number of matches, the
+        ratings produce the correct order of characters."""
+        for char1 in self.characters:
+            for char2 in self.characters:
+                self.register_comparison(char1.id, char2.id)
+        self.assertSorted()
+
+    def test_match_weight_finds_unmade_match(self):
+        """Matches one character against all but one opponent, then verifies
+        that the match weight for the last opponent is the highest."""
+        char1_id = self.characters[0].id
+        for char2 in self.characters[1:-1]:
+            self.register_comparison(char1_id, char2.id)
+        rating_info = self.controller.compute_ratings(self.charlist, raw=True)
+        last_matches = SortRecord.get_last_matches(self.charlist)
+        weights = [
+            self.controller.get_match_weight(
+                char1_id, char2.id, rating_info, last_matches)
+            for char2 in self.characters[1:]]
+        for weight in weights[:-1]:
+            self.assertLess(weight, weights[-1])
