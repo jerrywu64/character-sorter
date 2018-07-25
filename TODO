@@ -1,6 +1,7 @@
 New Features:
 make controller bugs give better error messages
 Allow no contest
+make it easier to edit lists/differentiate the character editing screen
 
 Security:
 fix https

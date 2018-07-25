@@ -17,7 +17,7 @@ class Controller(abc.ABC):
     @classmethod
     @abc.abstractmethod
     def get_next_comparison(cls, charlist):
-        """Retrieves the next pair of characters to compare, or None"""
+        """Retrieves the next pair of char ids to compare, or None"""
         pass
 
     @classmethod
@@ -30,7 +30,7 @@ class Controller(abc.ABC):
         assert record.char2.characterlist == charlist
         record.value = value
         record.save()
-
+        return record
 
     @classmethod
     @abc.abstractmethod
@@ -180,7 +180,7 @@ class GlickoRatingController(Controller):
         for t in times:
             assert (t is None) or (timestamp > t)
         results = [value, 1 - value]
-        rds = [cls.rd_after_time(rs[i], times[i], timestamp)
+        rds = [cls.rd_after_time(rds[i], times[i], timestamp)
                for i, _ in enumerate(ids)]
         new_rs = []
         new_rds = []
@@ -228,7 +228,9 @@ class GlickoRatingController(Controller):
         last_match = last_matches.get((char_id, opponent_id), None)
         days_since_last = (
             cls.RD_RESET_TIME if last_match is None else
-            timezone.now() - last_match.timestamp)
+            min((timezone.now() - last_match.timestamp).total_seconds()
+                / (3600 * 24),
+                cls.RD_RESET_TIME))
         return days_since_last * inv_dsquared
 
     @classmethod
