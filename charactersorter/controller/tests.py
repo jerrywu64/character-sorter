@@ -181,3 +181,14 @@ class GlickoRatingControllerTest(ControllerTest):
             for char2 in self.characters[1:]]
         for weight in weights[:-1]:
             self.assertLess(weight, weights[-1])
+
+    def test_char_weight_finds_unused_char(self):
+        """Matches every character but one, then verifies that the character
+        weight for the last character is the highest."""
+        for char in self.characters[1:-1]:
+            self.register_comparison(self.characters[0].id, char.id)
+        rating_info = self.controller.compute_ratings(self.charlist, raw=True)
+        char_ids = [char.id for char in self.characters]
+        weights = self.controller.get_char_weights(char_ids, rating_info)
+        for weight in weights[:-1]:
+            self.assertLess(weight, weights[-1])

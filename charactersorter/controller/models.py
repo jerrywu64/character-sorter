@@ -219,6 +219,12 @@ class GlickoRatingController(Controller):
             return ratings
 
     @classmethod
+    def get_sorted_chars(cls, charlist):
+        """Get a list of char IDs, sorted from best to worst."""
+        ratings = cls.compute_ratings(charlist)
+        return sorted(ratings, key=ratings.get, reverse=True)
+
+    @classmethod
     def get_match_weight(cls, char_id, opponent_id, rating_info, last_matches):
         """How much do we want this match to occur? We'd like a match which
         will minimize char_id's rd while avoiding repeated matchups."""
@@ -226,7 +232,6 @@ class GlickoRatingController(Controller):
         r_other, rd_other, _ = rating_info[opponent_id]
         _, inv_dsquared, _, _ = cls.compute_values(r, rd, r_other, rd_other)
         last_match = last_matches.get((char_id, opponent_id), None)
-        # TODO: isn't this always none?
         days_since_last = (
             cls.RD_RESET_TIME if last_match is None else
             min((timezone.now() - last_match.timestamp).total_seconds()
@@ -234,22 +239,29 @@ class GlickoRatingController(Controller):
                 cls.RD_RESET_TIME))
         return days_since_last * inv_dsquared
 
-    @classmethod
-    def get_sorted_chars(cls, charlist):
-        """Get a list of char IDs, sorted from best to worst."""
-        ratings = cls.compute_ratings(charlist)
-        return sorted(ratings, key=ratings.get, reverse=True)
+    @staticmethod
+    def get_char_weights(char_ids, rating_info):
+
+        """How much do we want to see a character in a match? Softmax based on
+        their rating deviation, scaled to each increment of 15."""
+        rds = np.array([rating_info[char_id][1] for char_id in char_ids])
+        rds -= np.max(rds)
+        rds /= 15
+        char_weights = np.exp(rds)
+        char_weights /= np.sum(char_weights)
+        return char_weights
 
     @classmethod
-    @abc.abstractmethod
     def get_next_comparison(cls, charlist):
         """Retrieves the next pair of characters to compare, or None"""
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         if len(char_ids) < 2:
             return None
         rating_info = cls.compute_ratings(charlist, raw=True)
-        # Pick a random first character
-        char_id = np.random.choice(char_ids)
+        # Pick a character based on how uncertain their rating is, proportional
+        # to the cube of the uncertainty.
+        char_weights = cls.get_char_weights(char_ids, rating_info)
+        char_id = np.random.choice(char_ids, p=char_weights)
         # Select their opponent:
         opponents = [opponent for opponent in char_ids if opponent != char_id]
         last_matches = SortRecord.get_last_matches(charlist)
@@ -259,7 +271,6 @@ class GlickoRatingController(Controller):
         return char_id, np.random.choice(opponents, p=opponent_weights)
 
     @classmethod
-    @abc.abstractmethod
     def get_annotations(cls, charlist):
         """Returns an annotation for each character, if any, e.g. whether the
         character has been sorted or not. Returns a dict mapping character ID
