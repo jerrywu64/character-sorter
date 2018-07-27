@@ -10,6 +10,7 @@ enforce only view logged in users
 Allow create new user
 
 Interface:
+Performance improvements!
 base template, disable double submit in add
 batch add characters
 keyboard shortcuts/buttons?
