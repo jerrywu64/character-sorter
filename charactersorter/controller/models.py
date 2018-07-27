@@ -196,7 +196,7 @@ class GlickoRatingController(Controller):
 
     @classmethod
     def compute_ratings(cls, charlist, raw=False, interval=False):
-        records = charlist.sortrecord_set.all().order_by("timestamp")
+        records = charlist.sortrecord_set.all().order_by("timestamp").select_related()
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         rating_info = {
             char_id: (cls.DEFAULT_RATING, cls.DEFAULT_RD, None)
@@ -296,7 +296,7 @@ class SortRecord(models.Model):
         """Returns a dict mapping (char1_id, char2_id) to the most recent match among
         the charlist's matches."""
         last_matches = {}
-        sorted_records = charlist.sortrecord_set.all().order_by("timestamp")
+        sorted_records = charlist.sortrecord_set.all().order_by("timestamp").select_related()
         for record in sorted_records:
             last_matches[(record.char1.id, record.char2.id)] = record
             last_matches[(record.char2.id, record.char1.id)] = record
