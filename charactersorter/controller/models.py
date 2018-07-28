@@ -246,7 +246,7 @@ class GlickoRatingController(Controller):
         their rating deviation, scaled to each increment of 15."""
         rds = np.array([rating_info[char_id][1] for char_id in char_ids])
         rds -= np.max(rds)
-        rds /= 15
+        rds = rds / 15
         char_weights = np.exp(rds)
         char_weights /= np.sum(char_weights)
         return char_weights
