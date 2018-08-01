@@ -1,4 +1,6 @@
-<body>
+{% extends "base.html" %}
+
+{% block body %}
 <h1>Editing {{ charlist.title }}</h1>
 
 {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
@@ -46,4 +48,4 @@
 </form>
 
 <a href="{% url 'sorterinput:viewlist' charlist.id %}">Done editing</a>
-</body>
+{% endblock %}

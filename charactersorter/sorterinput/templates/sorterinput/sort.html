@@ -1,8 +1,15 @@
-<body>
+{% extends "base.html" %}
 {% load static %}
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
-<script src="{% static 'sorterinput/js/sort.js' %}"></script>
 
+{% block title %}
+Sorting {{ charlist.title }} | Character Sorter
+{% endblock %}
+
+{% block js %}
+<script src="{% static 'sorterinput/js/sort.js' %}"></script>
+{% endblock %}
+
+{% block body %}
 <h1>Sorting {{ charlist.title }}</h1>
 
 {% if done %}<p><strong>Done!</strong></p>
@@ -39,4 +46,4 @@
 {% endif %}
 
 <a href="{% url 'sorterinput:viewlist' charlist.id %}">Back to viewing</a>
-</body>
+{% endblock %}
