@@ -10,6 +10,11 @@
         {% block js %}{% endblock %}
     </head>
     <body>
+        {% if user.is_authenticated %}
+            <p>Welcome, {{ user.get_username }}. Thanks for logging in.</p>
+        {% else %}
+            <p>Welcome, new user. Please <a href="{% url "login" %}">log in</a>.</p>
+        {% endif %}
         {% block body %}
         {% endblock %}
     </body>
