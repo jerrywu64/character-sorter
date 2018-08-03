@@ -1,6 +1,6 @@
 # pylint: disable-msg=too-many-ancestors
 # from django.shortcuts import render
-from django.http import HttpResponseRedirect
+from django.http import HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.views import generic
@@ -10,12 +10,23 @@ from .forms import \
     ModifyCharFormset, AddCharForm, ModifyCharlistFormset, AddCharlistForm
 from .models import CharacterList, Character
 
+def requires_list_owner(f):
+    def checked_f(request, list_id, *args):
+        if request.user.is_authenticated:
+            charlist = get_object_or_404(CharacterList, pk=list_id)
+            if charlist.owner.id == request.user.id:
+                return f(request, list_id, *args)
+        raise Http404("No CharacterList matches the given query.")
+    return checked_f
+
 class IndexView(generic.ListView):
     template_name = "sorterinput/index.html"
     context_object_name = "character_lists"
 
     def get_queryset(self):
-        return CharacterList.objects.all()
+        if not self.request.user.is_authenticated:
+            return None
+        return CharacterList.objects.filter(owner=self.request.user)
 
 def get_list_and_class(list_id):
     charlist = get_object_or_404(CharacterList, pk=list_id)
@@ -24,8 +35,13 @@ def get_list_and_class(list_id):
     return charlist, controller_cls
 
 def editcharlists(request):
+    if not request.user.is_authenticated:
+        return HttpResponseRedirect(reverse('login'))
+
     if request.method == "POST":
-        modformset = ModifyCharlistFormset(request.POST)
+        modformset = ModifyCharlistFormset(
+            request.POST,
+            queryset=CharacterList.objects.filter(owner=request.user))
         addform = AddCharlistForm(request.POST)
         if addform.is_valid():
             addform.save()
@@ -39,14 +55,15 @@ def editcharlists(request):
 
     else:
         modformset = ModifyCharlistFormset(
-            queryset=CharacterList.objects.all())
-        addform = AddCharlistForm()
+            queryset=CharacterList.objects.filter(owner=request.user))
+        addform = AddCharlistForm(initial={"owner": request.user})
     context = {
         "modformset": modformset,
         "addform": addform,
     }
     return render(request, "sorterinput/editlists.html", context)
 
+@requires_list_owner
 def viewlist(request, list_id):
     charlist, controller_cls = get_list_and_class(list_id)
     sorted_char_ids = controller_cls.get_sorted_chars(charlist)
@@ -61,6 +78,7 @@ def viewlist(request, list_id):
     }
     return render(request, "sorterinput/view.html", context)
 
+@requires_list_owner
 def editlist(request, list_id):
     charlist = get_object_or_404(CharacterList, pk=list_id)
     if request.method == "POST":
@@ -87,6 +105,7 @@ def editlist(request, list_id):
     }
     return render(request, "sorterinput/edit.html", context)
 
+@requires_list_owner
 def sortlist(request, list_id):
     charlist, controller_cls = get_list_and_class(list_id)
     error_msg = None
@@ -123,6 +142,7 @@ def sortlist(request, list_id):
     }
     return render(request, "sorterinput/sort.html", context)
 
+@requires_list_owner
 def undo(request, list_id):
     lastsort = get_object_or_404(
         controller.models.SortRecord, pk=int(request.POST["last"]))

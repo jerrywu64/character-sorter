@@ -20,3 +20,4 @@ class AddCharlistForm(forms.ModelForm):
     class Meta:
         model = CharacterList
         fields = ["owner", "title", "controller_type"]
+        widgets = {"owner": forms.HiddenInput()}

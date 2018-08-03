@@ -4,9 +4,6 @@ Allow no contest
 make it easier to edit lists/differentiate the character editing screen
 
 Security:
-User logins
-enforce only view logged in users
-Allow create new user
 
 Interface:
 base template, disable double submit in add
