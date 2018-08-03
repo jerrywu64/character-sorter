@@ -14,7 +14,7 @@ def requires_list_owner(f):
     def checked_f(request, list_id, *args):
         if request.user.is_authenticated:
             charlist = get_object_or_404(CharacterList, pk=list_id)
-            if charlist.owner.id == request.user.id:
+            if charlist.owner.id == request.user.id or request.user.is_superuser:
                 return f(request, list_id, *args)
         raise Http404("No CharacterList matches the given query.")
     return checked_f
