@@ -14,6 +14,9 @@ Viewing {{ charlist.title }} | Character Sorter
 <h2>Characters:
 <a href="{% url 'sorterinput:editlist' charlist.id %}">Edit</a>
 <a href="{% url 'sorterinput:sortlist' charlist.id %}">Sort</a>
+{% if has_graph %}
+<a href="{% url 'sorterinput:graphlist' charlist.id %}">Graph</a>
+{% endif %}
 </h2>
 <ol>
 {% for char in sortedchars %}

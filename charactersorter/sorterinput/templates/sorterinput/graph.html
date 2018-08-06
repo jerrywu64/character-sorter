@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load sorter_extras %}
+
+{% block title %}
+Graphing {{ charlist.title }} | Character Sorter
+{% endblock %}
+
+{% block js %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}
+
+{% block body %}
+<h1>Graphing list {{ charlist.title }}
+</h1>
+
+<div id="graph"></div>
+
+<script>
+    GRAPH = document.getElementById('graph');
+    {% if graph_info.graph_type == "bar_with_error" %}
+        var trace = {
+            x: {{ graph_info.characters|safe }},
+            y: {{ graph_info.ratings_raw|safe }},
+            type: "bar",
+            name: "Ratings",
+            error_y: {
+                type: "data",
+                array: {{ graph_info.double_rds|safe }},
+                visible: true
+            }
+        };
+        var data = [trace];
+        var layout = {
+            title: "Glicko Ratings",
+            xaxis: {
+                tickangle: 90
+            }
+        };
+        Plotly.newPlot(GRAPH, data, layout);
+    {% endif %}
+</script>
+
+
+<p><a href="{% url 'sorterinput:viewlist' charlist.id %}">Back to viewing</a></p>
+{% endblock %}

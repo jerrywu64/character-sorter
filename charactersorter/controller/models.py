@@ -1,5 +1,6 @@
 import abc
 import math
+import json
 import numpy as np
 from django.db import models
 from django.utils import timezone
@@ -39,6 +40,16 @@ class Controller(abc.ABC):
         character has been sorted or not. Returns a dict mapping character ID
         to annotation, or None if that character has no annotation."""
         pass
+
+    @classmethod
+    def get_graph_info(cls, charlist):
+        """If graphing is supported for this controller type, returns data
+        necessary to graph the characters. More specifically, returns a dict
+        with a "graph_type" key indicating the graph type, as well as the
+        information needed (appropriately escaped) for that graph type. See the
+        graph html template for more information. If graphing is not supported,
+        returns None (the default)."""
+        return None
 
 
 class InsertionSortController(Controller):
@@ -277,6 +288,26 @@ class GlickoRatingController(Controller):
         to annotation, or None if that character has no annotation."""
         ratings = cls.compute_ratings(charlist, interval=False)
         return {i: int(r) for i, r in ratings.items()}
+
+    @classmethod
+    def get_graph_info(cls, charlist):
+        rating_info = cls.compute_ratings(charlist, raw=True)
+        sorted_char_ids = sorted(
+            list(rating_info.keys()),
+            key=lambda char_id:
+            rating_info[char_id][0] - 2 * rating_info[char_id][1],
+            reverse=True)
+        characters = charlist.character_set.all().values_list("id", "name")
+        char_dict = {char_id: name for char_id, name in characters}
+        return {
+            "graph_type": "bar_with_error",
+            "characters": json.dumps(
+                [char_dict[char_id] for char_id in sorted_char_ids]),
+            "ratings_raw": json.dumps(
+                [rating_info[char_id][0] for char_id in sorted_char_ids]),
+            "double_rds": json.dumps(
+                [2 * rating_info[char_id][1] for char_id in sorted_char_ids]),
+        }
 
 
 class SortRecord(models.Model):

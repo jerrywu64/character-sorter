@@ -71,12 +71,27 @@ def viewlist(request, list_id):
     chars_by_id = {char.id: char for char in chars}
     sorted_chars = [chars_by_id[char_id] for char_id in sorted_char_ids]
     annotations = controller_cls.get_annotations(charlist)
+    graph_info = controller_cls.get_graph_info(charlist)
     context = {
         "charlist": charlist,
         "sortedchars": sorted_chars,
         "annotations": annotations,
+        "has_graph": graph_info is not None
     }
     return render(request, "sorterinput/view.html", context)
+
+@requires_list_owner
+def graphlist(request, list_id):
+    charlist, controller_cls = get_list_and_class(list_id)
+    graph_info = controller_cls.get_graph_info(charlist)
+    if graph_info is None:
+        return render(request, "sorterinput/nograph.html", {})
+    else:
+        context = {
+            "charlist": charlist,
+            "graph_info": graph_info
+        }
+        return render(request, "sorterinput/graph.html", context)
 
 @requires_list_owner
 def editlist(request, list_id):

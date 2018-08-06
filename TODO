@@ -4,6 +4,7 @@ Allow no contest
 make it easier to edit lists/differentiate the character editing screen
 
 Security:
+Make sure javascript/html insertion can't occur via character names lol
 
 Interface:
 base template, disable double submit in add
