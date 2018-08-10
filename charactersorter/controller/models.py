@@ -2,6 +2,7 @@ import abc
 import math
 import json
 import numpy as np
+import scipy.stats as st
 from django.db import models
 from django.utils import timezone
 
@@ -49,6 +50,12 @@ class Controller(abc.ABC):
         information needed (appropriately escaped) for that graph type. See the
         graph html template for more information. If graphing is not supported,
         returns None (the default)."""
+        return None
+
+    @classmethod
+    def get_progress_info(cls, charlist):
+        """Returns a string to display progress info, e.g. "5/10 done". Can
+        also return NOne."""
         return None
 
 
@@ -116,6 +123,14 @@ class InsertionSortController(Controller):
         if compair is not None:
             annotations[compair[0]] = "Now Sorting"
         return annotations
+
+    @classmethod
+    def get_progress_info(cls, charlist):
+        characters = charlist.character_set.all(
+            ).order_by("id").values_list("id", flat=True)
+        sorted_chars = cls.insertion_sort(charlist, characters)[0]
+        return "{}/{} sorted".format(len(sorted_chars) - 1, len(characters))
+
 
 class GlickoRatingController(Controller):
     """Computes a Glicko rating (http://www.glicko.net/glicko.html) for each
@@ -308,6 +323,29 @@ class GlickoRatingController(Controller):
             "double_rds": json.dumps(
                 [2 * rating_info[char_id][1] for char_id in sorted_char_ids]),
         }
+
+    @classmethod
+    def get_progress_info(cls, charlist):
+        rating_info = cls.compute_ratings(charlist, raw=True)
+        info_list = list(rating_info.values())
+        ratings = np.array([info[0] for info in info_list])[:, np.newaxis]
+        rds = np.array([info[1] for info in info_list])[:, np.newaxis]
+        rating_delta = np.abs(ratings - ratings.T)
+        rd_composite = np.sqrt(rds * rds + rds.T * rds.T)
+        probs = st.norm.cdf(rating_delta / rd_composite)
+        mask = np.full_like(probs, True, dtype=bool)
+        np.fill_diagonal(mask, False)
+        mean_conf = np.average(probs[mask])
+        # sorted_info = sorted(
+        #     list(rating_info.values()),
+        #     key=lambda x: x[0], reverse=True)  # Sorted by rating
+        # confidences = []
+        # for (rating1, rd1, _), (rating2, rd2, _) in zip(sorted_info, sorted_info[1:]):
+        #     rating_delta = rating1 - rating2
+        #     combined_rd = math.sqrt(rd1 ** 2 + rd2 ** 2)
+        #     confidences.append(st.norm.cdf(rating_delta / combined_rd))
+        # avg = np.average(confidences)
+        return "Average confidence: {}".format(mean_conf)
 
 
 class SortRecord(models.Model):

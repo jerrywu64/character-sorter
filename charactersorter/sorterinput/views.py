@@ -72,11 +72,13 @@ def viewlist(request, list_id):
     sorted_chars = [chars_by_id[char_id] for char_id in sorted_char_ids]
     annotations = controller_cls.get_annotations(charlist)
     graph_info = controller_cls.get_graph_info(charlist)
+    progress_info = controller_cls.get_progress_info(charlist)
     context = {
         "charlist": charlist,
         "sortedchars": sorted_chars,
         "annotations": annotations,
-        "has_graph": graph_info is not None
+        "has_graph": graph_info is not None,
+        "progress_info": progress_info
     }
     return render(request, "sorterinput/view.html", context)
 
@@ -147,8 +149,10 @@ def sortlist(request, list_id):
             charlist=charlist).order_by("-timestamp", "-id")[0]
     except IndexError:
         lastsort = None
+    progress_info = controller_cls.get_progress_info(charlist)
     context = {
         "charlist": charlist,
+        "progress_info": progress_info,
         "char1": char1,
         "char2": char2,
         "done": comparison is None,

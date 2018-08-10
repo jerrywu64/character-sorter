@@ -166,6 +166,7 @@ class GlickoRatingControllerTest(ControllerTest):
             for char2 in self.characters:
                 self.register_comparison(char1.id, char2.id)
         self.assertSorted()
+        print(self.controller.get_progress_info(self.charlist))
 
     def test_match_weight_finds_unmade_match(self):
         """Matches one character against all but one opponent, then verifies

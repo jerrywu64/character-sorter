@@ -2,6 +2,11 @@ New Features:
 make controller bugs give better error messages
 Allow no contest
 make it easier to edit lists/differentiate the character editing screen
+History rating graph
+
+Glicko:
+Make the interval chart nicer
+Add an x% done thing somehow
 
 Security:
 Make sure javascript/html insertion can't occur via character names lol
@@ -11,7 +16,6 @@ base template, disable double submit in add
 batch add characters
 keyboard shortcuts/buttons?
 Make interface more spiffy
-fancy viewer interface
 
 Insertion Sort:
 fix equality

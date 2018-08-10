@@ -14,7 +14,11 @@ Sorting {{ charlist.title }} | Character Sorter
 
 {% if done %}<p><strong>Done!</strong></p>
 {% else %}
-<h2>Choose the better one</h2>
+<h2>Choose the better one
+{% if progress_info %}
+({{ progress_info }})
+{% endif %}
+</h2>
 {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
 <form id="sort_form" action="{% url 'sorterinput:sortlist' charlist.id %}" method="post">
     {% csrf_token %}
