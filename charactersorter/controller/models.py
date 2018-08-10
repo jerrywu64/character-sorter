@@ -10,20 +10,24 @@ import sorterinput.models
 
 class Controller(abc.ABC):
 
-    @classmethod
+    def __init__(self):
+        # A Controller can be instantiated for performance reasons. The dirty
+        # marker helps keep track of whether cached valeus can be used. Note
+        # that this is not totally reliable because e.g. SortRecords may be
+        # modified through other means.
+        self.dirty = True
+
     @abc.abstractmethod
-    def get_sorted_chars(cls, charlist):
+    def get_sorted_chars(self, charlist):
         """Get a list of char IDs, sorted from best to worst."""
         pass
 
-    @classmethod
     @abc.abstractmethod
-    def get_next_comparison(cls, charlist):
+    def get_next_comparison(self, charlist):
         """Retrieves the next pair of char ids to compare, or None"""
         pass
 
-    @classmethod
-    def register_comparison(cls, charlist, char1_id, char2_id, value):
+    def register_comparison(self, charlist, char1_id, char2_id, value):
         record = SortRecord()
         record.charlist = charlist
         record.char1 = sorterinput.models.Character.objects.get(id=char1_id)
@@ -32,18 +36,17 @@ class Controller(abc.ABC):
         assert record.char2.characterlist == charlist
         record.value = value
         record.save()
+        self.dirty = True
         return record
 
-    @classmethod
     @abc.abstractmethod
-    def get_annotations(cls, charlist):
+    def get_annotations(self, charlist):
         """Returns an annotation for each character, if any, e.g. whether the
         character has been sorted or not. Returns a dict mapping character ID
         to annotation, or None if that character has no annotation."""
         pass
 
-    @classmethod
-    def get_graph_info(cls, charlist):
+    def get_graph_info(self, charlist):
         """If graphing is supported for this controller type, returns data
         necessary to graph the characters. More specifically, returns a dict
         with a "graph_type" key indicating the graph type, as well as the
@@ -52,8 +55,7 @@ class Controller(abc.ABC):
         returns None (the default)."""
         return None
 
-    @classmethod
-    def get_progress_info(cls, charlist):
+    def get_progress_info(self, charlist):
         """Returns a string to display progress info, e.g. "5/10 done". Can
         also return NOne."""
         return None
@@ -61,8 +63,15 @@ class Controller(abc.ABC):
 
 class InsertionSortController(Controller):
 
-    @staticmethod
-    def insertion_sort(charlist, characters=None):
+    def __init__(self):
+        super().__init__()
+        self.sorted_chars = None
+        self.compair = None
+
+    def insertion_sort(self, charlist, characters=None):
+        if not self.dirty:
+            return
+        self.dirty = False
         characters = characters or charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
         last_matches = SortRecord.get_last_matches(charlist)
@@ -92,44 +101,45 @@ class InsertionSortController(Controller):
                         low = mid + 1
                 else:
                     sorted_chars.insert(high, character)
-                    return sorted_chars, compair
+                    self.sorted_chars = sorted_chars
+                    self.compair = compair
+                    return
             sorted_chars.insert(high, character)
-        return sorted_chars, None
+        self.sorted_chars = sorted_chars
+        self.compair = None
 
-    @classmethod
-    def get_sorted_chars(cls, charlist):
+    def get_sorted_chars(self, charlist):
         characters = charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        sorted_chars = cls.insertion_sort(charlist, characters)[0]
+        self.insertion_sort(charlist, characters)
+        sorted_chars = list(self.sorted_chars)
         sorted_char_set = set(sorted_chars)
         for char_id in characters:
             if char_id not in sorted_char_set:
                 sorted_chars.append(char_id)
         return sorted_chars
 
-    @classmethod
-    def get_next_comparison(cls, charlist):
-        return cls.insertion_sort(charlist)[1]
+    def get_next_comparison(self, charlist):
+        self.insertion_sort(charlist)
+        return self.compair
 
-    @classmethod
-    def get_annotations(cls, charlist):
+    def get_annotations(self, charlist):
         characters = charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        sorted_chars, compair = cls.insertion_sort(charlist, characters)
-        sorted_char_set = set(sorted_chars)
+        self.insertion_sort(charlist, characters)
+        sorted_char_set = set(self.sorted_chars)
         annotations = {
             char: None if char in sorted_char_set else "Unsorted"
             for char in characters}
-        if compair is not None:
-            annotations[compair[0]] = "Now Sorting"
+        if self.compair is not None:
+            annotations[self.compair[0]] = "Now Sorting"
         return annotations
 
-    @classmethod
-    def get_progress_info(cls, charlist):
+    def get_progress_info(self, charlist):
         characters = charlist.character_set.all(
             ).order_by("id").values_list("id", flat=True)
-        sorted_chars = cls.insertion_sort(charlist, characters)[0]
-        return "{}/{} sorted".format(len(sorted_chars) - 1, len(characters))
+        self.insertion_sort(charlist, characters)
+        return "{}/{} sorted".format(len(self.sorted_chars) - 1, len(characters))
 
 
 class GlickoRatingController(Controller):
@@ -153,6 +163,10 @@ class GlickoRatingController(Controller):
     CONFIDENCE_BOOST = 2
     Q = math.log(10) / 400
 
+    def __init__(self):
+        super().__init__()
+        self.rating_info = None
+        self.ratings = None
 
     @classmethod
     def rd_after_time(cls, old_rd, old_time, new_time):
@@ -221,35 +235,34 @@ class GlickoRatingController(Controller):
         for i, r, rd in zip(ids, new_rs, new_rds):
             rating_info[i] = (r, rd, timestamp)
 
-    @classmethod
-    def compute_ratings(cls, charlist, raw=False, interval=False):
-        records = charlist.sortrecord_set.all().order_by("timestamp").select_related()
-        char_ids = charlist.character_set.all().values_list("id", flat=True)
-        rating_info = {
-            char_id: (cls.DEFAULT_RATING, cls.DEFAULT_RD, None)
-            for char_id in char_ids}
-        for record in records:
-            for _ in range(cls.CONFIDENCE_BOOST):
-                cls.process_record(record, rating_info)
-        # Make rds decay to the present
-        now = timezone.now()
-        for char_id, (r, rd, ts) in rating_info.items():
-            rating_info[char_id] = r, cls.rd_after_time(rd, ts, now), None
-        if raw:
-            return rating_info
-        else:
+    def compute_ratings(self, charlist, raw=False, interval=False):
+        if self.dirty:
+            self.dirty = False
+            records = charlist.sortrecord_set.all().order_by("timestamp").select_related()
+            char_ids = charlist.character_set.all().values_list("id", flat=True)
+            rating_info = {
+                char_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
+                for char_id in char_ids}
+            for record in records:
+                for _ in range(self.CONFIDENCE_BOOST):
+                    self.process_record(record, rating_info)
+            # Make rds decay to the present
+            now = timezone.now()
+            for char_id, (r, rd, ts) in rating_info.items():
+                rating_info[char_id] = r, self.rd_after_time(rd, ts, now), None
+            self.rating_info = rating_info
             ratings = {}
             for char_id in char_ids:
                 # Return rating - 2 * rd
                 r, rd, _ = rating_info[char_id]
                 ratings[char_id] = (
                     (r - 2 * rd) if not interval else (r - 2 * rd, r + 2 *rd))
-            return ratings
+            self.ratings = ratings
+        return self.rating_info if raw else self.ratings
 
-    @classmethod
-    def get_sorted_chars(cls, charlist):
+    def get_sorted_chars(self, charlist):
         """Get a list of char IDs, sorted from best to worst."""
-        ratings = cls.compute_ratings(charlist)
+        ratings = self.compute_ratings(charlist)
         return sorted(ratings, key=ratings.get, reverse=True)
 
     @classmethod
@@ -279,40 +292,37 @@ class GlickoRatingController(Controller):
         char_weights /= np.sum(char_weights)
         return char_weights
 
-    @classmethod
-    def get_next_comparison(cls, charlist):
+    def get_next_comparison(self, charlist):
         """Retrieves the next pair of characters to compare, or None"""
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         if len(char_ids) < 2:
             return None
-        rating_info = cls.compute_ratings(charlist, raw=True)
+        self.compute_ratings(charlist)
         # Pick a character based on how uncertain their rating is, proportional
         # to the cube of the uncertainty.
-        char_weights = cls.get_char_weights(char_ids, rating_info)
+        char_weights = self.get_char_weights(char_ids, self.rating_info)
         char_id = np.random.choice(char_ids, p=char_weights)
         # Select their opponent:
         opponents = [opponent for opponent in char_ids if opponent != char_id]
         last_matches = SortRecord.get_last_matches(charlist)
-        opponent_weights = np.array([cls.get_match_weight(
-            char_id, opponent, rating_info, last_matches) for opponent in opponents])
+        opponent_weights = np.array([self.get_match_weight(
+            char_id, opponent, self.rating_info, last_matches) for opponent in opponents])
         opponent_weights /= np.sum(opponent_weights)
         return char_id, np.random.choice(opponents, p=opponent_weights)
 
-    @classmethod
-    def get_annotations(cls, charlist):
+    def get_annotations(self, charlist):
         """Returns an annotation for each character, if any, e.g. whether the
         character has been sorted or not. Returns a dict mapping character ID
         to annotation, or None if that character has no annotation."""
-        ratings = cls.compute_ratings(charlist, interval=False)
+        ratings = self.compute_ratings(charlist, interval=False)
         return {i: int(r) for i, r in ratings.items()}
 
-    @classmethod
-    def get_graph_info(cls, charlist):
-        rating_info = cls.compute_ratings(charlist, raw=True)
+    def get_graph_info(self, charlist):
+        self.compute_ratings(charlist)
         sorted_char_ids = sorted(
-            list(rating_info.keys()),
+            list(self.rating_info.keys()),
             key=lambda char_id:
-            rating_info[char_id][0] - 2 * rating_info[char_id][1],
+            self.rating_info[char_id][0] - 2 * self.rating_info[char_id][1],
             reverse=True)
         characters = charlist.character_set.all().values_list("id", "name")
         char_dict = {char_id: name for char_id, name in characters}
@@ -321,15 +331,14 @@ class GlickoRatingController(Controller):
             "characters": json.dumps(
                 [char_dict[char_id] for char_id in sorted_char_ids]),
             "ratings_raw": json.dumps(
-                [rating_info[char_id][0] for char_id in sorted_char_ids]),
+                [self.rating_info[char_id][0] for char_id in sorted_char_ids]),
             "double_rds": json.dumps(
-                [2 * rating_info[char_id][1] for char_id in sorted_char_ids]),
+                [2 * self.rating_info[char_id][1] for char_id in sorted_char_ids]),
         }
 
-    @classmethod
-    def get_progress_info(cls, charlist):
-        rating_info = cls.compute_ratings(charlist, raw=True)
-        info_list = list(rating_info.values())
+    def get_progress_info(self, charlist):
+        self.compute_ratings(charlist)
+        info_list = list(self.rating_info.values())
         ratings = np.array([info[0] for info in info_list])[:, np.newaxis]
         rds = np.array([info[1] for info in info_list])[:, np.newaxis]
         rating_delta = np.abs(ratings - ratings.T)

@@ -28,11 +28,11 @@ class IndexView(generic.ListView):
             return None
         return CharacterList.objects.filter(owner=self.request.user)
 
-def get_list_and_class(list_id):
+def get_list_and_controller(list_id):
     charlist = get_object_or_404(CharacterList, pk=list_id)
     controller_cls_name = charlist.get_controller_class_name()
-    controller_cls = controller.models.CONTROLLER_TYPES[controller_cls_name]
-    return charlist, controller_cls
+    controller_obj = (controller.models.CONTROLLER_TYPES[controller_cls_name])()
+    return charlist, controller_obj
 
 def editcharlists(request):
     if not request.user.is_authenticated:
@@ -65,14 +65,14 @@ def editcharlists(request):
 
 @requires_list_owner
 def viewlist(request, list_id):
-    charlist, controller_cls = get_list_and_class(list_id)
-    sorted_char_ids = controller_cls.get_sorted_chars(charlist)
+    charlist, controller_obj = get_list_and_controller(list_id)
+    sorted_char_ids = controller_obj.get_sorted_chars(charlist)
     chars = Character.objects.filter(id__in=sorted_char_ids)
     chars_by_id = {char.id: char for char in chars}
     sorted_chars = [chars_by_id[char_id] for char_id in sorted_char_ids]
-    annotations = controller_cls.get_annotations(charlist)
-    graph_info = controller_cls.get_graph_info(charlist)
-    progress_info = controller_cls.get_progress_info(charlist)
+    annotations = controller_obj.get_annotations(charlist)
+    graph_info = controller_obj.get_graph_info(charlist)
+    progress_info = controller_obj.get_progress_info(charlist)
     context = {
         "charlist": charlist,
         "sortedchars": sorted_chars,
@@ -84,8 +84,8 @@ def viewlist(request, list_id):
 
 @requires_list_owner
 def graphlist(request, list_id):
-    charlist, controller_cls = get_list_and_class(list_id)
-    graph_info = controller_cls.get_graph_info(charlist)
+    charlist, controller_obj = get_list_and_controller(list_id)
+    graph_info = controller_obj.get_graph_info(charlist)
     if graph_info is None:
         return render(request, "sorterinput/nograph.html", {})
     else:
@@ -124,12 +124,12 @@ def editlist(request, list_id):
 
 @requires_list_owner
 def sortlist(request, list_id):
-    charlist, controller_cls = get_list_and_class(list_id)
+    charlist, controller_obj = get_list_and_controller(list_id)
     error_msg = None
     if request.method == "POST":
         try:
             result = int(request.POST["sort"])
-            controller_cls.register_comparison(
+            controller_obj.register_comparison(
                 charlist,
                 request.POST["char1"], request.POST["char2"],
                 result)
@@ -137,7 +137,7 @@ def sortlist(request, list_id):
                 'sorterinput:sortlist', args=(list_id,)))
         except KeyError:
             error_msg = "You didn't select a choice."
-    comparison = controller_cls.get_next_comparison(charlist)
+    comparison = controller_obj.get_next_comparison(charlist)
     if comparison is None:
         char1, char2 = None, None
     else:
@@ -149,7 +149,7 @@ def sortlist(request, list_id):
             charlist=charlist).order_by("-timestamp", "-id")[0]
     except IndexError:
         lastsort = None
-    progress_info = controller_cls.get_progress_info(charlist)
+    progress_info = controller_obj.get_progress_info(charlist)
     context = {
         "charlist": charlist,
         "progress_info": progress_info,

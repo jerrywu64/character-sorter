@@ -82,7 +82,7 @@ class ControllerTest(TestCase):
 class InsertionSortControllerTest(ControllerTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.controller = InsertionSortController
+        self.controller = InsertionSortController()
 
     def test_sort(self):
         # Compute number of comparisons for efficiency
@@ -102,7 +102,7 @@ class GlickoRatingControllerTest(ControllerTest):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.controller = GlickoRatingController
+        self.controller = GlickoRatingController()
 
     def test_rating_monotonicity(self):
         """First, play one match for each player. Then, play a number of
