@@ -356,7 +356,7 @@ class GlickoRatingController(Controller):
         #     combined_rd = math.sqrt(rd1 ** 2 + rd2 ** 2)
         #     confidences.append(st.norm.cdf(rating_delta / combined_rd))
         # avg = np.average(confidences)
-        return "Average confidence: {}".format(mean_conf)
+        return "Average confidence: {:.3f}".format(mean_conf)
 
 
 class SortRecord(models.Model):
