@@ -150,6 +150,7 @@ class GlickoRatingController(Controller):
     MIN_RD = 30
     RD_RESET_TIME = 90  # in days. c^2 = (default_rd^2 - typical_rd^2)/reset_time
     RD_INCREASE_SCALE_SQ = (DEFAULT_RD ** 2 - TYPICAL_RD ** 2) / RD_RESET_TIME
+    CONFIDENCE_BOOST = 2
     Q = math.log(10) / 400
 
 
@@ -204,7 +205,7 @@ class GlickoRatingController(Controller):
         value = (record.value + 1) / 2  # to convert to 1/0.5/0 system
         rs, rds, times = zip(*[rating_info[char_id] for char_id in ids])
         for t in times:
-            assert (t is None) or (timestamp > t)
+            assert (t is None) or (timestamp >= t)
         results = [value, 1 - value]
         rds = [cls.rd_after_time(rds[i], times[i], timestamp)
                for i, _ in enumerate(ids)]
@@ -228,7 +229,8 @@ class GlickoRatingController(Controller):
             char_id: (cls.DEFAULT_RATING, cls.DEFAULT_RD, None)
             for char_id in char_ids}
         for record in records:
-            cls.process_record(record, rating_info)
+            for _ in range(cls.CONFIDENCE_BOOST):
+                cls.process_record(record, rating_info)
         # Make rds decay to the present
         now = timezone.now()
         for char_id, (r, rd, ts) in rating_info.items():
