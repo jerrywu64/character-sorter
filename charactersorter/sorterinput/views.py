@@ -4,6 +4,8 @@ from django.http import HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
 from django.views import generic
+from django.conf import settings
+import requests
 
 import controller.models
 from .forms import \
@@ -33,6 +35,25 @@ def get_list_and_controller(list_id):
     controller_cls_name = charlist.get_controller_class_name()
     controller_obj = (controller.models.CONTROLLER_TYPES[controller_cls_name])()
     return charlist, controller_obj
+
+def get_char_image(character):
+    """searches for the specified character on Google Images with a custom
+    search engine. See
+    https://developers.google.com/custom-search/json-api/v1/reference/cse/list
+    """
+    uri = "https://www.googleapis.com/customsearch/v1"
+    payload = {
+        "key": settings.IMAGE_SEARCH_KEY,
+        "cx": settings.IMAGE_SEARCH_CX,
+        "q" : "{} from {}".format(character.name, character.fandom),
+        "num": 1,
+        "searchType": "image",
+    }
+    print(payload)
+    r = requests.get(uri, params=payload)
+    j = r.json()
+    print(j["items"][0])
+    return j["items"][0]["image"]
 
 def editcharlists(request):
     if not request.user.is_authenticated:
@@ -140,10 +161,13 @@ def sortlist(request, list_id):
     comparison = controller_obj.get_next_comparison(charlist)
     if comparison is None:
         char1, char2 = None, None
+        img1, img2 = None, None
     else:
         char1, char2 = comparison
         char1 = Character.objects.get(pk=char1)
+        img1 = get_char_image(char1)
         char2 = Character.objects.get(pk=char2)
+        img2 = get_char_image(char2)
     try:
         lastsort = controller.models.SortRecord.objects.filter(
             charlist=charlist).order_by("-timestamp", "-id")[0]
@@ -154,7 +178,9 @@ def sortlist(request, list_id):
         "charlist": charlist,
         "progress_info": progress_info,
         "char1": char1,
+        "img1": img1,
         "char2": char2,
+        "img2": img2,
         "done": comparison is None,
         "lastsort": lastsort,
         "error_message": error_msg
