@@ -26,3 +26,5 @@ DATABASES = {
         'PORT': '',
     }
 }
+
+IMAGE_SEARCH_CX = ""
