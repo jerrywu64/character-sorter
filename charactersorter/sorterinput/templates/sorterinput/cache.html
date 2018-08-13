@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}
+Cached {{ charlist.title }} | Character Sorter
+{% endblock %}
+
+{% block body %}
+Successfully cached images for {{ charlist.title }}
+
+<p><a href="{% url 'sorterinput:sortlist' charlist.id %}">Back to Sorting</a></p>
+{% endblock %}
+

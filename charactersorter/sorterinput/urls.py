@@ -11,5 +11,5 @@ urlpatterns = [
     path('<int:list_id>/edit/', views.editlist, name='editlist'),
     path('<int:list_id>/sort/', views.sortlist, name='sortlist'),
     path('<int:list_id>/undo/', views.undo, name='undo'),
-
+    path('<int:list_id>/cache/', views.cachelistimages, name='cache'),
 ]

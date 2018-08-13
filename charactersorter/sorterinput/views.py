@@ -10,7 +10,7 @@ import requests
 import controller.models
 from .forms import \
     ModifyCharFormset, AddCharForm, ModifyCharlistFormset, AddCharlistForm
-from .models import CharacterList, Character
+from .models import CharacterList, Character, CharacterImageRecord
 
 def requires_list_owner(f):
     def checked_f(request, list_id, *args):
@@ -41,19 +41,29 @@ def get_char_image(character):
     search engine. See
     https://developers.google.com/custom-search/json-api/v1/reference/cse/list
     """
-    uri = "https://www.googleapis.com/customsearch/v1"
-    payload = {
-        "key": settings.IMAGE_SEARCH_KEY,
-        "cx": settings.IMAGE_SEARCH_CX,
-        "q" : "{} from {}".format(character.name, character.fandom),
-        "num": 1,
-        "searchType": "image",
+    try:
+        imgrecord = CharacterImageRecord.objects.get(character=character)
+    except CharacterImageRecord.DoesNotExist:
+        uri = "https://www.googleapis.com/customsearch/v1"
+        payload = {
+            "key": settings.IMAGE_SEARCH_KEY,
+            "cx": settings.IMAGE_SEARCH_CX,
+            "q" : "{} from {}".format(character.name, character.fandom),
+            "num": 1,
+            "searchType": "image",
+        }
+        r = requests.get(uri, params=payload)
+        j = r.json()
+        imgres = j["items"][0]["image"]
+        imgrecord = CharacterImageRecord(
+            character=character,
+            thumbnail_link=imgres["thumbnailLink"],
+            context_link=imgres["contextLink"])
+        imgrecord.save()
+    return {
+        "thumbnailLink": imgrecord.thumbnail_link,
+        "contextLink": imgrecord.context_link
     }
-    print(payload)
-    r = requests.get(uri, params=payload)
-    j = r.json()
-    print(j["items"][0])
-    return j["items"][0]["image"]
 
 def editcharlists(request):
     if not request.user.is_authenticated:
@@ -186,6 +196,15 @@ def sortlist(request, list_id):
         "error_message": error_msg
     }
     return render(request, "sorterinput/sort.html", context)
+
+@requires_list_owner
+def cachelistimages(request, list_id):
+    charlist = get_object_or_404(CharacterList, pk=list_id)
+    characters = charlist.character_set.all()
+    for char in characters:
+        get_char_image(char)
+    context = {"charlist": charlist}
+    return render(request, "sorterinput/cache.html", context)
 
 @requires_list_owner
 def undo(request, list_id):

@@ -56,6 +56,9 @@ Sorting {{ charlist.title }} | Character Sorter
 {% endif %}
 
 <p><font size="0">Images powered by Google Custom Search (tm)</font></p>
+<p><font size="0">Page loading slowly? Try
+    <a href="{% url 'sorterinput:cache' charlist.id %}">caching images</a>,
+    which may take a few minutes.</a></font></p>
 
 <p><a href="{% url 'sorterinput:viewlist' charlist.id %}">Back to
     viewing</a></p>

@@ -32,3 +32,9 @@ class Character(models.Model):
 
     def __str__(self):
         return "{} ({})".format(self.name, self.fandom)
+
+
+class CharacterImageRecord(models.Model):
+    character = models.ForeignKey(Character, on_delete=models.CASCADE)
+    thumbnail_link = models.TextField()
+    context_link = models.TextField()
