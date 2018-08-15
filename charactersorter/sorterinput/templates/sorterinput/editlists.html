@@ -1,3 +1,10 @@
+{% extends "base.html" %}
+
+{% block title %}
+Editing Character Lists | Character Sorter
+{% endblock %}
+
+{% block body %}
 {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
 
 <h2>Edit Character Lists</h2>
@@ -43,3 +50,4 @@
 </form>
 
 <a href="{% url 'sorterinput:index' %}">Done editing</a>
+{% endblock %}
