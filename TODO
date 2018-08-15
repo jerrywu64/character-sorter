@@ -12,8 +12,6 @@ Security:
 Make sure javascript/html insertion can't occur via character names lol
 
 Interface:
-Add an x% done thing somehow
-base template, disable double submit in add
 batch add characters
 keyboard shortcuts/buttons?
 Make interface more spiffy

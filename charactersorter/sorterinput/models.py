@@ -12,6 +12,7 @@ class CharacterList(models.Model):
     title = models.CharField(max_length=200)
     controller_type = models.CharField(
         max_length=2, choices=CONTROLLER_CHOICES, default=INSERTION)
+    show_images = models.BooleanField(default=False)
 
     def get_controller_class_name(self):
         for shortkey, name in self.CONTROLLER_CHOICES:

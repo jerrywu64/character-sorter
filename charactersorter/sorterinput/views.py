@@ -175,9 +175,9 @@ def sortlist(request, list_id):
     else:
         char1, char2 = comparison
         char1 = Character.objects.get(pk=char1)
-        img1 = get_char_image(char1)
+        img1 = get_char_image(char1) if charlist.show_images else None
         char2 = Character.objects.get(pk=char2)
-        img2 = get_char_image(char2)
+        img2 = get_char_image(char2) if charlist.show_images else None
     try:
         lastsort = controller.models.SortRecord.objects.filter(
             charlist=charlist).order_by("-timestamp", "-id")[0]

@@ -7,7 +7,7 @@ ModifyCharFormset = forms.modelformset_factory(
     extra=0)
 
 ModifyCharlistFormset = forms.modelformset_factory(
-    CharacterList, fields=["title", "controller_type"], can_delete=True,
+    CharacterList, fields=["title", "controller_type", "show_images"], can_delete=True,
     extra=0)
 
 class AddCharForm(forms.ModelForm):
@@ -19,5 +19,5 @@ class AddCharForm(forms.ModelForm):
 class AddCharlistForm(forms.ModelForm):
     class Meta:
         model = CharacterList
-        fields = ["owner", "title", "controller_type"]
+        fields = ["owner", "title", "controller_type", "show_images"]
         widgets = {"owner": forms.HiddenInput()}
