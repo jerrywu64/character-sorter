@@ -79,8 +79,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-log_file = 'charsorter.log'
-def get_logging():
+def get_logging(log_file):
     return {
             'version': 1,
             'disable_existing_loggers': False,
@@ -113,7 +112,7 @@ def get_logging():
                     },
                 }
             }
-LOGGING = get_logging()
+LOGGING = get_logging('charsorter.log')
 
 # Internationalization
 # https://docs.djangoproject.com/en/2.0/topics/i18n/
