@@ -79,6 +79,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+log_file = 'charsorter.log'
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -95,7 +96,7 @@ LOGGING = {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': 'charsorter.log',
+            'filename': log_file,
             'formatter': 'verbose'
         },
     },
