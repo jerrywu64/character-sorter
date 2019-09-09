@@ -5,3 +5,4 @@ env
 *prod_settings.py
 *local_settings.py
 charactersorter/static
+*charsorter.log
