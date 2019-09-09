@@ -80,39 +80,40 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 log_file = 'charsorter.log'
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format' : "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s",
-            'datefmt' : "%d/%b/%Y %H:%M:%S"
-        },
-        'simple': {
-            'format': '%(levelname)s %(message)s'
-        },
-    },
-    'handlers': {
-        'file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': log_file,
-            'formatter': 'verbose'
-        },
-    },
-    'loggers': {
-        'django': {
-            'handlers':['file'],
-            'propagate': True,
-            'level':'DEBUG',
-        },
-        'charsorter': {
-            'handlers': ['file'],
-            'level': 'DEBUG',
-        },
-    }
-}
-
+def get_logging():
+    return {
+            'version': 1,
+            'disable_existing_loggers': False,
+            'formatters': {
+                'verbose': {
+                    'format' : "[%(asctime)s] %(levelname)s [%(name)s:%(lineno)s] %(message)s",
+                    'datefmt' : "%d/%b/%Y %H:%M:%S"
+                    },
+                'simple': {
+                    'format': '%(levelname)s %(message)s'
+                    },
+                },
+            'handlers': {
+                'file': {
+                    'level': 'DEBUG',
+                    'class': 'logging.FileHandler',
+                    'filename': log_file,
+                    'formatter': 'verbose'
+                    },
+                },
+            'loggers': {
+                'django': {
+                    'handlers':['file'],
+                    'propagate': True,
+                    'level':'DEBUG',
+                    },
+                'charsorter': {
+                    'handlers': ['file'],
+                    'level': 'DEBUG',
+                    },
+                }
+            }
+LOGGING = get_logging()
 
 # Internationalization
 # https://docs.djangoproject.com/en/2.0/topics/i18n/
