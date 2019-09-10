@@ -305,7 +305,7 @@ class GlickoRatingController(Controller):
         rs = np.array([rating_info[char_id][0] for char_id in char_ids])
 
         rs = np.minimum(np.maximum(rs, cls.BOOST_RATING_MIN), cls.BOOST_RATING_MAX)
-        rs /= cls.BOOST_RATING_MIN
+        rs = rs / cls.BOOST_RATING_MIN
         rs = rs ** (rating_pow if rating_pow is not None else cls.BOOST_RATING_POW)
 
         raw_weights = rds * rs
