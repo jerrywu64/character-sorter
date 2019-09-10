@@ -11,10 +11,8 @@
     </head>
     <body>
         Notice: This website almost certainly has security vulnerabilities. I
-        took some vague precautions but parts of the stack are definitely
-        outdated and probably not configured correctly. Don't put anything you
-        super-care about into this website, including sharing passwords with
-        any website you care about.
+        took vague precautions but if this website ever asks you for your
+        social security number, assume that it got hacked.
         {% if user.is_authenticated %}
             <p>Welcome, {{ user.get_username }}. <a href="{% url "logout" %}">Log out</a></p>
         {% else %}
