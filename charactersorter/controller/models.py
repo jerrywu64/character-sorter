@@ -294,6 +294,14 @@ class GlickoRatingController(Controller):
         return days_since_last * inv_dsquared
 
     @classmethod
+    def get_rating_weights(cls, char_ids, rating_info, rating_pow=None):
+        rs = np.array([rating_info[char_id][0] for char_id in char_ids])
+        rs = np.minimum(np.maximum(rs, cls.BOOST_RATING_MIN), cls.BOOST_RATING_MAX)
+        rs = rs / cls.BOOST_RATING_MIN
+        rs = rs ** (rating_pow if rating_pow is not None else cls.BOOST_RATING_POW)
+        return rs
+
+    @classmethod
     def get_char_weights(cls, char_ids, rating_info, rating_pow=None):
 
         """How much do we want to see a character in a match? Softmax based on
@@ -302,11 +310,7 @@ class GlickoRatingController(Controller):
         rds = np.array([rating_info[char_id][1] for char_id in char_ids])
         rds = rds / 15
 
-        rs = np.array([rating_info[char_id][0] for char_id in char_ids])
-
-        rs = np.minimum(np.maximum(rs, cls.BOOST_RATING_MIN), cls.BOOST_RATING_MAX)
-        rs = rs / cls.BOOST_RATING_MIN
-        rs = rs ** (rating_pow if rating_pow is not None else cls.BOOST_RATING_POW)
+        rs = cls.get_rating_weights(char_ids, rating_info)
 
         raw_weights = rds * rs
         raw_weights -= np.max(raw_weights)
@@ -370,7 +374,11 @@ class GlickoRatingController(Controller):
         probs = st.norm.cdf(rating_delta / rd_composite)
         mask = np.full_like(probs, True, dtype=bool)
         np.fill_diagonal(mask, False)
-        mean_conf = np.average(probs[mask])
+        char_ids = charlist.character_set.all().values_list("id", flat=True)
+        weights = self.get_rating_weights(char_ids, self.rating_info)
+        weights_matrix = (
+            (weights[:, np.newaxis] * weights[np.newaxis, :]) ** 0.5)
+        mean_conf = np.average(probs[mask], weights=weights_matrix[mask])
         # sorted_info = sorted(
         #     list(rating_info.values()),
         #     key=lambda x: x[0], reverse=True)  # Sorted by rating
