@@ -104,7 +104,7 @@ def get_logging(log_file):
                 'django': {
                     'handlers':['file'],
                     'propagate': True,
-                    'level':'DEBUG',
+                    'level':'INFO',
                     },
                 'charsorter': {
                     'handlers': ['file'],
