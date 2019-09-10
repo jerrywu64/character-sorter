@@ -40,6 +40,9 @@ def get_char_image(character):
     """searches for the specified character on Google Images with a custom
     search engine. See
     https://developers.google.com/custom-search/json-api/v1/reference/cse/list
+    If IMAGE_SEARCH_KEY/IMAGE_SEARCH_CX isn't configured correctly, the page
+    will probably crash. If set to "", show_images should be disabled in the
+    charlist creation form, however, so hopefully this isn't an issue.
     """
     try:
         imgrecord = CharacterImageRecord.objects.get(character=character)
