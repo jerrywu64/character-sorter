@@ -134,3 +134,8 @@ LOGIN_REDIRECT_URL = "/"
 # https://docs.djangoproject.com/en/2.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+# Google image search feature. Credentials for a Google Cloud Custom Search
+# Engine account.
+IMAGE_SEARCH_CX = ""
+IMAGE_SEARCH_KEY = ""
