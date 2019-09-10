@@ -65,7 +65,7 @@ class InsertionSortController(Controller):
 
     def __init__(self):
         super().__init__()
-        self.sorted_chars = None
+        self.sorted_chars = None  # In decreasing order of awesomeness.
         self.compair = None
 
     def insertion_sort(self, charlist, characters=None):
@@ -369,7 +369,7 @@ class SortRecord(models.Model):
         sorterinput.models.Character, on_delete=models.CASCADE,
         related_name="sortrecord2")
     timestamp = models.DateTimeField(auto_now_add=True)
-    value = models.IntegerField()
+    value = models.IntegerField()  # Positive means char1 wins.
 
     @staticmethod
     def get_last_matches(charlist):
@@ -383,7 +383,12 @@ class SortRecord(models.Model):
         return last_matches
 
     def __str__(self):
-        return "{} vs {}".format(self.char1, self.char2)
+        if self.value > 0:
+            return "{} (win) vs {}".format(self.char1, self.char2)
+        elif self.value < 0:
+            return "{} vs {} (win)".format(self.char1, self.char2)
+        else:
+            return "{} vs {} (tie)".format(self.char1, self.char2)
 
 CONTROLLER_TYPES = {
     "InsertionSortController": InsertionSortController,
