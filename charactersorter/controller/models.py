@@ -160,8 +160,20 @@ class GlickoRatingController(Controller):
     MIN_RD = 30
     RD_RESET_TIME = 90  # in days. c^2 = (default_rd^2 - typical_rd^2)/reset_time
     RD_INCREASE_SCALE_SQ = (DEFAULT_RD ** 2 - TYPICAL_RD ** 2) / RD_RESET_TIME
-    CONFIDENCE_BOOST = 2
+    CONFIDENCE_BOOST = 2  # Count each match this many times.
     Q = math.log(10) / 400
+
+    # Parameters for preferring higher-ranked people. 
+    # We compute a weight for each character as follows:
+    # (clamp(rating, max, min) / min) ^ pow
+    # When picking a character to rank, we perform a softmax based on the
+    # rating deviation, however we upweight the deviation based on this factor.
+    # So in aggregate we expect the highest-ranked people to have
+    # (max / min ^ # pow)
+    # tighter intervals.
+    BOOST_RATING_MAX = 2500
+    BOOST_RATING_MIN = 500
+    BOOST_RATING_POW = 0.43  # ln(2) / ln(5)
 
     def __init__(self):
         super().__init__()
@@ -268,7 +280,8 @@ class GlickoRatingController(Controller):
     @classmethod
     def get_match_weight(cls, char_id, opponent_id, rating_info, last_matches):
         """How much do we want this match to occur? We'd like a match which
-        will minimize char_id's rd while avoiding repeated matchups."""
+        will minimize char_id's rd while avoiding repeated matchups, and
+        maximizing the ranking of high-scoring characters."""
         r, rd, _ = rating_info[char_id]
         r_other, rd_other, _ = rating_info[opponent_id]
         _, inv_dsquared, _, _ = cls.compute_values(r, rd, r_other, rd_other)
@@ -280,16 +293,27 @@ class GlickoRatingController(Controller):
                 cls.RD_RESET_TIME))
         return days_since_last * inv_dsquared
 
-    @staticmethod
-    def get_char_weights(char_ids, rating_info):
+    @classmethod
+    def get_char_weights(cls, char_ids, rating_info, rating_pow=None):
 
         """How much do we want to see a character in a match? Softmax based on
-        their rating deviation, scaled to each increment of 15."""
+        their rating deviation, scaled to each increment of 15, boosted by
+        rating."""
         rds = np.array([rating_info[char_id][1] for char_id in char_ids])
-        rds -= np.max(rds)
         rds = rds / 15
-        char_weights = np.exp(rds)
+
+        rs = np.array([rating_info[char_id][0] for char_id in char_ids])
+
+        rs = np.minimum(np.maximum(rs, cls.BOOST_RATING_MIN), cls.BOOST_RATING_MAX)
+        rs /= cls.BOOST_RATING_MIN
+        rs = rs ** (rating_pow if rating_pow is not None else cls.BOOST_RATING_POW)
+
+        raw_weights = rds * rs
+        raw_weights -= np.max(raw_weights)
+
+        char_weights = np.exp(raw_weights)
         char_weights /= np.sum(char_weights)
+
         return char_weights
 
     def get_next_comparison(self, charlist):

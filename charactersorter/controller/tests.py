@@ -189,6 +189,19 @@ class GlickoRatingControllerTest(ControllerTest):
             self.register_comparison(self.characters[0].id, char.id)
         rating_info = self.controller.compute_ratings(self.charlist, raw=True)
         char_ids = [char.id for char in self.characters]
-        weights = self.controller.get_char_weights(char_ids, rating_info)
+        weights = self.controller.get_char_weights(
+                char_ids, rating_info, rating_pow=0)
         for weight in weights[:-1]:
             self.assertLess(weight, weights[-1])
+
+    def test_char_weight_prefers_better_char(self):
+        """Performs a single match, and verifies that the resulting weight is
+        higher for the winner."""
+        # character 0 wins
+        self.register_comparison(
+            self.characters[0].id, self.characters[1].id, result=1)
+        rating_info = self.controller.compute_ratings(self.charlist, raw=True)
+        char_ids = [char.id for char in self.characters]
+        weights = self.controller.get_char_weights(
+                char_ids, rating_info)
+        self.assertGreater(weights[0], weights[1])
