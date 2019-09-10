@@ -173,7 +173,7 @@ class GlickoRatingController(Controller):
     # tighter intervals.
     BOOST_RATING_MAX = 2500
     BOOST_RATING_MIN = 500
-    BOOST_RATING_POW = 0.43  # ln(2) / ln(5)
+    BOOST_RATING_POW = 0.25  # ln(2) / ln(5)
 
     def __init__(self):
         super().__init__()
