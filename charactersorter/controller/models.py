@@ -365,6 +365,8 @@ class GlickoRatingController(Controller):
         }
 
     def get_progress_info(self, charlist):
+        if len(charlist.character_set.all()) < 2:
+            return ""
         self.compute_ratings(charlist)
         info_list = list(self.rating_info.values())
         ratings = np.array([info[0] for info in info_list])[:, np.newaxis]
