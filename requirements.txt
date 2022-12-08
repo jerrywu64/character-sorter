@@ -1,5 +1,5 @@
 astroid==1.6.5
-certifi==2018.8.13
+certifi==2022.12.7
 chardet==3.0.4
 Django==2.0.6
 django-debug-toolbar==1.9.1
