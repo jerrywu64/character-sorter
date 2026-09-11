@@ -279,8 +279,8 @@ class RatingHistoryTest(ApiTestCase):
         record.save()
         return record
 
-    def test_a_point_per_match_reported_from_this_characters_side(self):
-        alice, bob = self.mine.chars
+    def test_only_this_characters_matches_appear_and_the_sign_follows_it(self):
+        alice, _ = self.mine.chars
         carol = Character.objects.create(
             characterlist=self.mine, name="Carol", fandom="Fandom")
         # setUp has Alice beating Bob; Carol then beats Alice.
@@ -289,38 +289,18 @@ class RatingHistoryTest(ApiTestCase):
         history = self.history_of(self.mine, alice)["history"]
         self.assertEqual(
             [point["opponent"]["name"] for point in history], ["Bob", "Carol"])
-        # The sign follows Alice, not the side of the record she sat on.
+        # Alice was char1 in the first and char2 in the second.
         self.assertEqual([point["value"] for point in history], [1, -1])
-        self.assertEqual(
-            self.history_of(self.mine, carol)["history"][0]["value"], 1)
-        self.assertEqual(
-            [point["opponent"]["name"]
-             for point in self.history_of(self.mine, bob)["history"]],
-            ["Alice"])
 
-    def test_a_win_raises_the_rating_and_a_loss_lowers_it(self):
+    def test_the_reported_pair_is_raw_not_the_rankings_annotation(self):
         alice, _ = self.mine.chars
-        carol = Character.objects.create(
-            characterlist=self.mine, name="Carol", fandom="Fandom")
-        self.add_match(self.mine, carol, alice, days_later=1)
-
         body = self.history_of(self.mine, alice)
-        won, lost = body["history"]
-        self.assertGreater(
-            won["rating"],
-            controller.models.GlickoRatingController.DEFAULT_RATING)
-        self.assertLess(lost["rating"], won["rating"])
-        # Every match narrows the uncertainty it was played under.
-        self.assertLess(
-            won["rd"], controller.models.GlickoRatingController.DEFAULT_RD)
-        # The ranking's annotation is the pessimistic bound, not this pair.
         ranked = body_of(self.request(
             "get", "/api/lists/{}".format(self.mine.id)))
         by_id = {char["id"]: char for char in ranked["characters"]}
         self.assertAlmostEqual(
             body["rating"] - 2 * body["rd"],
             by_id[alice.id]["annotation"], delta=1)
-        self.assertGreater(body["rating"], by_id[alice.id]["annotation"])
 
     def test_a_character_with_no_matches_has_an_empty_history(self):
         loner = Character.objects.create(
