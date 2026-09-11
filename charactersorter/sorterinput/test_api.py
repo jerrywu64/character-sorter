@@ -102,6 +102,7 @@ class ListOwnershipTest(ApiTestCase):
          {"name": "New", "fandom": "F"}, 201),
         ("patch", "/api/lists/{list}/characters/{char}",
          {"name": "Renamed"}, 200),
+        ("get", "/api/lists/{list}/characters/{char}/history", None, 200),
         ("delete", "/api/lists/{list}/characters/{char}", None, 204),
         ("get", "/api/lists/{list}/next", None, 200),
         ("post", "/api/lists/{list}/comparisons", "comparison", 201),
@@ -149,6 +150,7 @@ class NestedLookupTest(ApiTestCase):
     def test_foreign_child_ids_are_not_reachable_through_my_own_list(self):
         for method, template, body in (
                 ("patch", "/api/lists/{}/characters/{}", {"name": "Pwned"}),
+                ("get", "/api/lists/{}/characters/{}/history", None),
                 ("delete", "/api/lists/{}/characters/{}", None)):
             self.assertEqual(
                 self.request(method,
@@ -254,3 +256,90 @@ class ComparisonTest(ApiTestCase):
             "char1": self.mine.chars[0].id, "char2": self.mine.chars[1].id,
             "value": 0}).status_code, 201)
         self.assertEqual(self.mine.sortrecord_set.count(), 2)
+
+
+class RatingHistoryTest(ApiTestCase):
+    """The history endpoint replays the comparisons compute_ratings replays,
+    recording a point for each one the character took part in."""
+
+    def url_for(self, charlist, char):
+        return "/api/lists/{}/characters/{}/history".format(
+            charlist.id, char.id)
+
+    def history_of(self, charlist, char):
+        return body_of(self.request("get", self.url_for(charlist, char)))
+
+    def add_match(self, charlist, winner, loser, days_later):
+        """A comparison the winner won, stamped after the setUp one."""
+        record = controller.models.SortRecord.objects.create(
+            charlist=charlist, char1=winner, char2=loser, value=1)
+        # auto_now_add means the timestamp can only be set after the fact.
+        record.timestamp = charlist.record.timestamp + datetime.timedelta(
+            days=days_later)
+        record.save()
+        return record
+
+    def test_a_point_per_match_reported_from_this_characters_side(self):
+        alice, bob = self.mine.chars
+        carol = Character.objects.create(
+            characterlist=self.mine, name="Carol", fandom="Fandom")
+        # setUp has Alice beating Bob; Carol then beats Alice.
+        self.add_match(self.mine, carol, alice, days_later=1)
+
+        history = self.history_of(self.mine, alice)["history"]
+        self.assertEqual(
+            [point["opponent"]["name"] for point in history], ["Bob", "Carol"])
+        # Alice won as char1 and lost as char2, and the sign follows her
+        # rather than the side of the record she happened to sit on.
+        self.assertEqual([point["value"] for point in history], [1, -1])
+        self.assertEqual(
+            self.history_of(self.mine, carol)["history"][0]["value"], 1)
+        self.assertEqual(
+            [point["opponent"]["name"]
+             for point in self.history_of(self.mine, bob)["history"]],
+            ["Alice"])
+
+    def test_a_win_raises_the_rating_and_a_loss_lowers_it(self):
+        alice, _ = self.mine.chars
+        carol = Character.objects.create(
+            characterlist=self.mine, name="Carol", fandom="Fandom")
+        self.add_match(self.mine, carol, alice, days_later=1)
+
+        body = self.history_of(self.mine, alice)
+        won, lost = body["history"]
+        self.assertGreater(
+            won["rating"],
+            controller.models.GlickoRatingController.DEFAULT_RATING)
+        self.assertLess(lost["rating"], won["rating"])
+        # Every match narrows the uncertainty it was played under.
+        self.assertLess(
+            won["rd"], controller.models.GlickoRatingController.DEFAULT_RD)
+        # rating and rd are the raw Glicko pair, matching the history points.
+        # The ranking's annotation is neither: compute_ratings returns the
+        # pessimistic lower bound, so a caller wanting the number the ranking
+        # shows has to take rating - 2 * rd itself.
+        ranked = body_of(self.request(
+            "get", "/api/lists/{}".format(self.mine.id)))
+        by_id = {char["id"]: char for char in ranked["characters"]}
+        self.assertAlmostEqual(
+            body["rating"] - 2 * body["rd"],
+            by_id[alice.id]["annotation"], delta=1)
+        self.assertGreater(body["rating"], by_id[alice.id]["annotation"])
+
+    def test_a_character_with_no_matches_has_an_empty_history(self):
+        loner = Character.objects.create(
+            characterlist=self.mine, name="Loner", fandom="Fandom")
+        body = self.history_of(self.mine, loner)
+        self.assertEqual(body["history"], [])
+        self.assertEqual(
+            body["rating"],
+            controller.models.GlickoRatingController.DEFAULT_RATING)
+
+    def test_an_insertion_sort_list_has_no_rating_history(self):
+        charlist = CharacterList.objects.create(
+            owner=self.attacker, title="Unrated",
+            controller_type=CharacterList.INSERTION)
+        char = Character.objects.create(
+            characterlist=charlist, name="Alice", fandom="Fandom")
+        self.assertEqual(
+            self.request("get", self.url_for(charlist, char)).status_code, 404)

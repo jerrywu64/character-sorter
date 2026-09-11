@@ -266,6 +266,29 @@ def comparison_detail(request, list_id, rec_id):
     return HttpResponse(status=204)
 
 @api_view("GET")
+def character_history(request, list_id, char_id):
+    charlist = owned_list(request, list_id)
+    char = charlist.character_set.get(id=char_id)
+    controller_obj = controller_for(charlist)
+    history = controller_obj.get_rating_history(charlist, char.id)
+    if history is None:
+        raise ApiError(404, "This list's controller has no ratings.")
+    # Ratings decayed to the present, so the caller can draw the history
+    # against the same number every other endpoint reports.
+    rating, rd, _ = controller_obj.compute_ratings(charlist, raw=True)[char.id]
+    data = char_json(char, charlist.show_images)
+    data["rating"] = rating
+    data["rd"] = rd
+    data["history"] = [{
+        "timestamp": point["timestamp"],
+        "rating": point["rating"],
+        "rd": point["rd"],
+        "opponent": char_json(point["opponent"]),
+        "value": point["value"],
+    } for point in history]
+    return JsonResponse(data)
+
+@api_view("GET")
 def graph(request, list_id):
     charlist = owned_list(request, list_id)
     info = controller_for(charlist).get_graph_info(charlist)
