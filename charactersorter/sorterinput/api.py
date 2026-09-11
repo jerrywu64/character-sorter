@@ -273,19 +273,18 @@ def character_history(request, list_id, char_id):
     history = controller_obj.get_rating_history(charlist, char.id)
     if history is None:
         raise ApiError(404, "This list's controller has no ratings.")
-    # Ratings decayed to the present, so the caller can draw the history
-    # against the same number every other endpoint reports.
-    rating, rd, _ = controller_obj.compute_ratings(charlist, raw=True)[char.id]
     data = char_json(char, charlist.show_images)
-    data["rating"] = rating
-    data["rd"] = rd
+    # The raw pair, as /graph reports it. The ranking's annotation is neither:
+    # it is rating - 2 * rd, so a caller wanting that must subtract.
+    data["rating"] = history["rating"]
+    data["rd"] = history["rd"]
     data["history"] = [{
         "timestamp": point["timestamp"],
         "rating": point["rating"],
         "rd": point["rd"],
         "opponent": char_json(point["opponent"]),
         "value": point["value"],
-    } for point in history]
+    } for point in history["history"]]
     return JsonResponse(data)
 
 @api_view("GET")

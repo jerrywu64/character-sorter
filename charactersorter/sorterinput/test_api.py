@@ -289,8 +289,7 @@ class RatingHistoryTest(ApiTestCase):
         history = self.history_of(self.mine, alice)["history"]
         self.assertEqual(
             [point["opponent"]["name"] for point in history], ["Bob", "Carol"])
-        # Alice won as char1 and lost as char2, and the sign follows her
-        # rather than the side of the record she happened to sit on.
+        # The sign follows Alice, not the side of the record she sat on.
         self.assertEqual([point["value"] for point in history], [1, -1])
         self.assertEqual(
             self.history_of(self.mine, carol)["history"][0]["value"], 1)
@@ -314,10 +313,7 @@ class RatingHistoryTest(ApiTestCase):
         # Every match narrows the uncertainty it was played under.
         self.assertLess(
             won["rd"], controller.models.GlickoRatingController.DEFAULT_RD)
-        # rating and rd are the raw Glicko pair, matching the history points.
-        # The ranking's annotation is neither: compute_ratings returns the
-        # pessimistic lower bound, so a caller wanting the number the ranking
-        # shows has to take rating - 2 * rd itself.
+        # The ranking's annotation is the pessimistic bound, not this pair.
         ranked = body_of(self.request(
             "get", "/api/lists/{}".format(self.mine.id)))
         by_id = {char["id"]: char for char in ranked["characters"]}
@@ -334,6 +330,23 @@ class RatingHistoryTest(ApiTestCase):
         self.assertEqual(
             body["rating"],
             controller.models.GlickoRatingController.DEFAULT_RATING)
+
+    def test_tied_timestamps_replay_in_a_stable_order(self):
+        alice, bob = self.mine.chars
+        carol = Character.objects.create(
+            characterlist=self.mine, name="Carol", fandom="Fandom")
+        tie = self.mine.record.timestamp + datetime.timedelta(days=1)
+        for winner, loser in ((carol, alice), (alice, bob)):
+            record = controller.models.SortRecord.objects.create(
+                charlist=self.mine, char1=winner, char2=loser, value=1)
+            record.timestamp = tie
+            record.save()
+
+        body = self.history_of(self.mine, alice)
+        self.assertEqual(
+            body["history"], self.history_of(self.mine, alice)["history"])
+        # Only rd decays, so the last point's rating is the reported one.
+        self.assertEqual(body["history"][-1]["rating"], body["rating"])
 
     def test_an_insertion_sort_list_has_no_rating_history(self):
         charlist = CharacterList.objects.create(

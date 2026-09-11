@@ -57,11 +57,10 @@ class Controller(abc.ABC):
         return None
 
     def get_rating_history(self, charlist, char_id):
-        """If this controller rates characters, returns the history of one
-        character's rating: a list of dicts, oldest first, holding the rating
-        and rd after each comparison the character took part in, along with
-        the opponent and the result. Returns None (the default) if the
-        controller keeps no rating to have a history of."""
+        """If this controller rates characters, returns a dict with the
+        character's current "rating" and "rd" plus a "history" list, oldest
+        first, of the rating after each comparison it took part in. Returns
+        None (the default) if the controller keeps no rating."""
         return None
 
     def get_progress_info(self, charlist):
@@ -259,7 +258,9 @@ class GlickoRatingController(Controller):
     def compute_ratings(self, charlist, raw=False, interval=False):
         if self.dirty:
             self.dirty = False
-            records = charlist.sortrecord_set.all().order_by("timestamp").select_related()
+            # id breaks timestamp ties, which are reachable and order-dependent.
+            records = charlist.sortrecord_set.all().order_by(
+                "timestamp", "id").select_related()
             char_ids = charlist.character_set.all().values_list("id", flat=True)
             rating_info = {
                 char_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
@@ -374,19 +375,15 @@ class GlickoRatingController(Controller):
         }
 
     def get_rating_history(self, charlist, char_id):
-        """The rating and rd this character held after each of its matches.
+        """This character's current rating and how each match moved it.
 
-        The replay is the one compute_ratings does -- same order, same
-        CONFIDENCE_BOOST -- so the last point here is the character's rating
-        before the rd decay that compute_ratings applies to bring it to the
-        present. Points are recorded only for the comparisons this character
-        took part in, since no other comparison moves its rating.
-
-        The result is reported from this character's side: value is positive
-        when this character won, whichever side of the record it sat on.
+        Replays as compute_ratings does, so "rating" and "rd" are its decayed
+        end state and no second replay is needed. Points cover only this
+        character's own matches, each holding the rating as it stood then, and
+        value is positive when this character won whichever side it sat on.
         """
         records = charlist.sortrecord_set.all().order_by(
-            "timestamp").select_related()
+            "timestamp", "id").select_related()
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         rating_info = {
             other_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
@@ -409,7 +406,12 @@ class GlickoRatingController(Controller):
                 "opponent": opponent,
                 "value": value,
             })
-        return history
+        rating, rd, last_played = rating_info[char_id]
+        return {
+            "rating": rating,
+            "rd": self.rd_after_time(rd, last_played, timezone.now()),
+            "history": history,
+        }
 
     def get_progress_info(self, charlist):
         if len(charlist.character_set.all()) < 2:
