@@ -159,6 +159,16 @@ class GlickoRatingControllerTest(ControllerTest):
             self.assertLess(new_rd_1, old_rd_1)
             self.assertLess(new_rd_2, old_rd_2)
 
+    def test_graph_info_escapes_script_close(self):
+        """A character name containing "</script>" must not let its raw
+        text appear in the graph JSON, or it would break out of the
+        <script> block graph.html inlines it into."""
+        self.characters[0].name = "</script><script>alert(1)</script>"
+        self.characters[0].save()
+        self.register_comparison(self.characters[0].id, self.characters[1].id)
+        graph_info = self.controller.get_graph_info(self.charlist)
+        self.assertNotIn("</script>", graph_info["characters"])
+
     def test_rating_convergence(self):
         """Ensure that after a sufficiently large number of matches, the
         ratings produce the correct order of characters."""
