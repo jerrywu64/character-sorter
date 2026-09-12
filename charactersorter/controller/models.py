@@ -8,6 +8,14 @@ from django.utils import timezone
 
 import sorterinput.models
 
+
+def dumps_for_script(value):
+    """json.dumps, but safe to inline in a <script> block. json.dumps
+    doesn't escape "</script>", so a character name containing it could
+    otherwise break out of the block (see graph.html)."""
+    return json.dumps(value).replace("<", "\\u003c")
+
+
 class Controller(abc.ABC):
 
     def __init__(self):
@@ -366,11 +374,11 @@ class GlickoRatingController(Controller):
         char_dict = {char_id: name for char_id, name in characters}
         return {
             "graph_type": "bar_with_error",
-            "characters": json.dumps(
+            "characters": dumps_for_script(
                 [char_dict[char_id] for char_id in sorted_char_ids]),
-            "ratings_raw": json.dumps(
+            "ratings_raw": dumps_for_script(
                 [self.rating_info[char_id][0] for char_id in sorted_char_ids]),
-            "double_rds": json.dumps(
+            "double_rds": dumps_for_script(
                 [2 * self.rating_info[char_id][1] for char_id in sorted_char_ids]),
         }
 
