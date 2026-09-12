@@ -102,6 +102,7 @@ class ListOwnershipTest(ApiTestCase):
          {"name": "New", "fandom": "F"}, 201),
         ("patch", "/api/lists/{list}/characters/{char}",
          {"name": "Renamed"}, 200),
+        ("get", "/api/lists/{list}/characters/{char}/history", None, 200),
         ("delete", "/api/lists/{list}/characters/{char}", None, 204),
         ("get", "/api/lists/{list}/next", None, 200),
         ("post", "/api/lists/{list}/comparisons", "comparison", 201),
@@ -149,6 +150,7 @@ class NestedLookupTest(ApiTestCase):
     def test_foreign_child_ids_are_not_reachable_through_my_own_list(self):
         for method, template, body in (
                 ("patch", "/api/lists/{}/characters/{}", {"name": "Pwned"}),
+                ("get", "/api/lists/{}/characters/{}/history", None),
                 ("delete", "/api/lists/{}/characters/{}", None)):
             self.assertEqual(
                 self.request(method,
@@ -254,3 +256,83 @@ class ComparisonTest(ApiTestCase):
             "char1": self.mine.chars[0].id, "char2": self.mine.chars[1].id,
             "value": 0}).status_code, 201)
         self.assertEqual(self.mine.sortrecord_set.count(), 2)
+
+
+class RatingHistoryTest(ApiTestCase):
+    """The history endpoint replays the comparisons compute_ratings replays,
+    recording a point for each one the character took part in."""
+
+    def url_for(self, charlist, char):
+        return "/api/lists/{}/characters/{}/history".format(
+            charlist.id, char.id)
+
+    def history_of(self, charlist, char):
+        return body_of(self.request("get", self.url_for(charlist, char)))
+
+    def add_match(self, charlist, winner, loser, days_later):
+        """A comparison the winner won, stamped after the setUp one."""
+        record = controller.models.SortRecord.objects.create(
+            charlist=charlist, char1=winner, char2=loser, value=1)
+        # auto_now_add means the timestamp can only be set after the fact.
+        record.timestamp = charlist.record.timestamp + datetime.timedelta(
+            days=days_later)
+        record.save()
+        return record
+
+    def test_only_this_characters_matches_appear_and_the_sign_follows_it(self):
+        alice, _ = self.mine.chars
+        carol = Character.objects.create(
+            characterlist=self.mine, name="Carol", fandom="Fandom")
+        # setUp has Alice beating Bob; Carol then beats Alice.
+        self.add_match(self.mine, carol, alice, days_later=1)
+
+        history = self.history_of(self.mine, alice)["history"]
+        self.assertEqual(
+            [point["opponent"]["name"] for point in history], ["Bob", "Carol"])
+        # Alice was char1 in the first and char2 in the second.
+        self.assertEqual([point["value"] for point in history], [1, -1])
+
+    def test_the_reported_pair_is_raw_not_the_rankings_annotation(self):
+        alice, _ = self.mine.chars
+        body = self.history_of(self.mine, alice)
+        ranked = body_of(self.request(
+            "get", "/api/lists/{}".format(self.mine.id)))
+        by_id = {char["id"]: char for char in ranked["characters"]}
+        self.assertAlmostEqual(
+            body["rating"] - 2 * body["rd"],
+            by_id[alice.id]["annotation"], delta=1)
+
+    def test_a_character_with_no_matches_has_an_empty_history(self):
+        loner = Character.objects.create(
+            characterlist=self.mine, name="Loner", fandom="Fandom")
+        body = self.history_of(self.mine, loner)
+        self.assertEqual(body["history"], [])
+        self.assertEqual(
+            body["rating"],
+            controller.models.GlickoRatingController.DEFAULT_RATING)
+
+    def test_tied_timestamps_replay_in_a_stable_order(self):
+        alice, bob = self.mine.chars
+        carol = Character.objects.create(
+            characterlist=self.mine, name="Carol", fandom="Fandom")
+        tie = self.mine.record.timestamp + datetime.timedelta(days=1)
+        for winner, loser in ((carol, alice), (alice, bob)):
+            record = controller.models.SortRecord.objects.create(
+                charlist=self.mine, char1=winner, char2=loser, value=1)
+            record.timestamp = tie
+            record.save()
+
+        body = self.history_of(self.mine, alice)
+        self.assertEqual(
+            body["history"], self.history_of(self.mine, alice)["history"])
+        # Only rd decays, so the last point's rating is the reported one.
+        self.assertEqual(body["history"][-1]["rating"], body["rating"])
+
+    def test_an_insertion_sort_list_has_no_rating_history(self):
+        charlist = CharacterList.objects.create(
+            owner=self.attacker, title="Unrated",
+            controller_type=CharacterList.INSERTION)
+        char = Character.objects.create(
+            characterlist=charlist, name="Alice", fandom="Fandom")
+        self.assertEqual(
+            self.request("get", self.url_for(charlist, char)).status_code, 404)

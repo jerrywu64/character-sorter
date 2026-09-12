@@ -9,6 +9,8 @@ urlpatterns = [
     path("lists/<int:list_id>/characters", api.characters, name="characters"),
     path("lists/<int:list_id>/characters/<int:char_id>",
          api.character_detail, name="character_detail"),
+    path("lists/<int:list_id>/characters/<int:char_id>/history",
+         api.character_history, name="character_history"),
     path("lists/<int:list_id>/next", api.next_comparison, name="next"),
     path("lists/<int:list_id>/comparisons", api.comparisons,
          name="comparisons"),

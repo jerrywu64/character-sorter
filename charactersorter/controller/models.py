@@ -56,6 +56,13 @@ class Controller(abc.ABC):
         returns None (the default)."""
         return None
 
+    def get_rating_history(self, charlist, char_id):
+        """If this controller rates characters, returns a dict with the
+        character's current "rating" and "rd" plus a "history" list, oldest
+        first, of the rating after each comparison it took part in. Returns
+        None (the default) if the controller keeps no rating."""
+        return None
+
     def get_progress_info(self, charlist):
         """Returns a string to display progress info, e.g. "5/10 done". Can
         also return NOne."""
@@ -251,7 +258,9 @@ class GlickoRatingController(Controller):
     def compute_ratings(self, charlist, raw=False, interval=False):
         if self.dirty:
             self.dirty = False
-            records = charlist.sortrecord_set.all().order_by("timestamp").select_related()
+            # id breaks timestamp ties, which are reachable and order-dependent.
+            records = charlist.sortrecord_set.all().order_by(
+                "timestamp", "id").select_related()
             char_ids = charlist.character_set.all().values_list("id", flat=True)
             rating_info = {
                 char_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
@@ -363,6 +372,45 @@ class GlickoRatingController(Controller):
                 [self.rating_info[char_id][0] for char_id in sorted_char_ids]),
             "double_rds": json.dumps(
                 [2 * self.rating_info[char_id][1] for char_id in sorted_char_ids]),
+        }
+
+    def get_rating_history(self, charlist, char_id):
+        """This character's current rating and how each match moved it.
+
+        Replays as compute_ratings does, so "rating" and "rd" are its decayed
+        end state and no second replay is needed. Points cover only this
+        character's own matches, each holding the rating as it stood then, and
+        value is positive when this character won whichever side it sat on.
+        """
+        records = charlist.sortrecord_set.all().order_by(
+            "timestamp", "id").select_related()
+        char_ids = charlist.character_set.all().values_list("id", flat=True)
+        rating_info = {
+            other_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
+            for other_id in char_ids}
+        history = []
+        for record in records:
+            for _ in range(self.CONFIDENCE_BOOST):
+                self.process_record(record, rating_info)
+            if char_id == record.char1_id:
+                opponent, value = record.char2, record.value
+            elif char_id == record.char2_id:
+                opponent, value = record.char1, -record.value
+            else:
+                continue
+            rating, rd, _ = rating_info[char_id]
+            history.append({
+                "timestamp": record.timestamp,
+                "rating": rating,
+                "rd": rd,
+                "opponent": opponent,
+                "value": value,
+            })
+        rating, rd, last_played = rating_info[char_id]
+        return {
+            "rating": rating,
+            "rd": self.rd_after_time(rd, last_played, timezone.now()),
+            "history": history,
         }
 
     def get_progress_info(self, charlist):
