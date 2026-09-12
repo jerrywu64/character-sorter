@@ -192,6 +192,17 @@ class GlickoRatingControllerTest(ControllerTest):
         for weight in weights[:-1]:
             self.assertLess(weight, weights[-1])
 
+    def test_compute_ratings_last_matches_matches_standalone(self):
+        """self.last_matches, built inline by compute_ratings, must equal
+        SortRecord.get_last_matches computed independently."""
+        for char1, char2 in zip(self.characters, self.characters[1:]):
+            self.register_comparison(char1.id, char2.id)
+        self.controller.compute_ratings(self.charlist)
+        expected = SortRecord.get_last_matches(self.charlist)
+        self.assertEqual(self.controller.last_matches.keys(), expected.keys())
+        for key, record in expected.items():
+            self.assertEqual(self.controller.last_matches[key].id, record.id)
+
     def test_char_weight_finds_unused_char(self):
         """Matches every character but one, then verifies that the character
         weight for the last character is the highest."""

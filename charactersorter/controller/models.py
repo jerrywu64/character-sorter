@@ -273,9 +273,13 @@ class GlickoRatingController(Controller):
             rating_info = {
                 char_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
                 for char_id in char_ids}
+            last_matches = {}
             for record in records:
+                last_matches[(record.char1_id, record.char2_id)] = record
+                last_matches[(record.char2_id, record.char1_id)] = record
                 for _ in range(self.CONFIDENCE_BOOST):
                     self.process_record(record, rating_info)
+            self.last_matches = last_matches
             # Make rds decay to the present
             now = timezone.now()
             for char_id, (r, rd, ts) in rating_info.items():
@@ -350,9 +354,9 @@ class GlickoRatingController(Controller):
         char_id = np.random.choice(char_ids, p=char_weights)
         # Select their opponent:
         opponents = [opponent for opponent in char_ids if opponent != char_id]
-        last_matches = SortRecord.get_last_matches(charlist)
         opponent_weights = np.array([self.get_match_weight(
-            char_id, opponent, self.rating_info, last_matches) for opponent in opponents])
+            char_id, opponent, self.rating_info, self.last_matches)
+            for opponent in opponents])
         opponent_weights /= np.sum(opponent_weights)
         return char_id, np.random.choice(opponents, p=opponent_weights)
 
