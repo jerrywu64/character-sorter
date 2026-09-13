@@ -1,16 +1,23 @@
 # pylint: disable-msg=too-many-ancestors
 # from django.shortcuts import render
+from django.contrib import messages
 from django.http import HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
+from django.utils.text import Truncator
 from django.views import generic
 from django.conf import settings
 import requests
 
 import controller.models
 from .forms import \
-    ModifyCharFormset, AddCharForm, ModifyCharlistFormset, AddCharlistForm
+    ModifyCharFormset, AddCharForm, ModifyCharlistFormset, AddCharlistForm, \
+    PasteCharsForm
 from .models import CharacterList, Character, CharacterImageRecord
+from .paste import parse_paste, new_entries
+
+# A paste of junk shouldn't put a message per line in the session.
+SKIP_REPORT_LIMIT = 5
 
 def requires_list_owner(f):
     def checked_f(request, list_id, *args):
@@ -131,6 +138,31 @@ def graphlist(request, list_id):
         }
         return render(request, "sorterinput/graph.html", context)
 
+def plural(count, noun):
+    return "{} {}{}".format(count, noun, "" if count == 1 else "s")
+
+def add_pasted_chars(request, charlist, text):
+    """Creates every pasted character not already in the list, reporting
+    what was added and what was skipped through the messages framework."""
+    entries, skipped = parse_paste(text)
+    unseen = new_entries(
+        entries, charlist.character_set.values_list("name", "fandom"))
+    Character.objects.bulk_create([
+        Character(characterlist=charlist, name=entry.name, fandom=entry.fandom)
+        for entry in unseen])
+    summary = "Added {}.".format(plural(len(unseen), "character"))
+    duplicates = len(entries) - len(unseen)
+    if duplicates:
+        summary += " {} already in the list.".format(
+            plural(duplicates, "line"))
+    messages.success(request, summary)
+    for line in skipped[:SKIP_REPORT_LIMIT]:
+        messages.warning(request, "Skipped \"{}\": {}.".format(
+            Truncator(line.text).chars(60), line.reason))
+    if len(skipped) > SKIP_REPORT_LIMIT:
+        messages.warning(request, "Plus {} not shown.".format(
+            plural(len(skipped) - SKIP_REPORT_LIMIT, "skipped line")))
+
 @requires_list_owner
 def editlist(request, list_id):
     charlist = get_object_or_404(CharacterList, pk=list_id)
@@ -139,10 +171,17 @@ def editlist(request, list_id):
             request.POST,
             queryset=Character.objects.filter(characterlist__id=list_id))
         addform = AddCharForm(request.POST)
+        pasteform = PasteCharsForm(request.POST)
         if addform.is_valid():
             char = addform.save(commit=False)
             char.characterlist = charlist
             char.save()
+            return HttpResponseRedirect(reverse(
+                'sorterinput:editlist', args=(list_id,)))
+
+        if pasteform.is_valid():
+            add_pasted_chars(
+                request, charlist, pasteform.cleaned_data["paste"])
             return HttpResponseRedirect(reverse(
                 'sorterinput:editlist', args=(list_id,)))
 
@@ -155,10 +194,12 @@ def editlist(request, list_id):
         modformset = ModifyCharFormset(
             queryset=Character.objects.filter(characterlist__id=list_id))
         addform = AddCharForm()
+        pasteform = PasteCharsForm()
     context = {
         "charlist": charlist,
         "modformset": modformset,
         "addform": addform,
+        "pasteform": pasteform,
     }
     return render(request, "sorterinput/edit.html", context)
 

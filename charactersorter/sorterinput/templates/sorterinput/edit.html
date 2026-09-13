@@ -5,6 +5,12 @@
 
 {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
 
+{% if messages %}
+<ul>
+    {% for message in messages %}<li>{{ message }}</li>{% endfor %}
+</ul>
+{% endif %}
+
 <h2>Edit Characters</h2>
 <form action="{% url 'sorterinput:editlist' charlist.id %}" method="post">
     {% csrf_token %}
@@ -45,6 +51,15 @@
     {{ addform.as_p }}
 
     <input type="submit" value="Add!" />
+</form>
+
+<h2>Add Many Characters</h2>
+
+<form action="{% url 'sorterinput:editlist' charlist.id %}" method="post">
+    {% csrf_token %}
+    {{ pasteform.as_p }}
+
+    <input type="submit" value="Add all!" />
 </form>
 
 <a href="{% url 'sorterinput:viewlist' charlist.id %}">Done editing</a>

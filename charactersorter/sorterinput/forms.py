@@ -23,6 +23,15 @@ class AddCharForm(forms.ModelForm):
         model = Character
         fields = ["name", "fandom"]
 
+class PasteCharsForm(forms.Form):
+    """Free text parsed by sorterinput.paste, not a ModelForm: one paste
+    makes any number of characters."""
+    paste = forms.CharField(
+        label="Characters",
+        help_text=("One per line, as \"Name (Fandom)\" or a \"[Fandom]\" "
+                   "line followed by bare names. Duplicates are skipped."),
+        widget=forms.Textarea(attrs={"rows": 8}))
+
 class AddCharlistForm(forms.ModelForm):
     """owner is set by the view from request.user; same reasoning."""
     class Meta:

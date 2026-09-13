@@ -4,11 +4,100 @@ from django.urls import reverse
 
 import controller.models
 from .models import Character, CharacterList
+from .paste import FIELD_LIMIT, NO_FANDOM, parse_paste, new_entries
 
 class ControllerTypeIntegrityTest(TestCase):
     def test_controller_type_integrity(self):
         for _, controller_type in CharacterList.CONTROLLER_CHOICES:
             self.assertIn(controller_type, controller.models.CONTROLLER_TYPES)
+
+
+class PasteParseTest(TestCase):
+    def parse(self, text):
+        entries, skipped = parse_paste(text)
+        return [tuple(entry) for entry in entries], skipped
+
+    def test_inline_fandom(self):
+        self.assertEqual(
+            self.parse("Sailor Neptune (Sailor Moon)")[0],
+            [("Sailor Neptune", "Sailor Moon")])
+
+    def test_header_supplies_fandom_for_bare_names(self):
+        entries, skipped = self.parse(
+            "[Madoka Magica]\n Homura Akemi \n\nMami Tomoe\n")
+        self.assertEqual(entries, [("Homura Akemi", "Madoka Magica"),
+                                   ("Mami Tomoe", "Madoka Magica")])
+        self.assertEqual(skipped, [])
+
+    def test_inline_fandom_overrides_the_header_for_one_line_only(self):
+        """The override is not sticky: the header still applies below it."""
+        self.assertEqual(
+            self.parse("[Trigun]\nVash\nUsagi (Sailor Moon)\nWolfwood")[0],
+            [("Vash", "Trigun"), ("Usagi", "Sailor Moon"),
+             ("Wolfwood", "Trigun")])
+
+    def test_tab_separates_a_spreadsheet_paste(self):
+        self.assertEqual(
+            self.parse("Vash\tTrigun\nUsagi (x)\tSailor Moon")[0],
+            [("Vash", "Trigun"), ("Usagi (x)", "Sailor Moon")])
+
+    def test_only_the_last_parens_are_the_fandom(self):
+        self.assertEqual(
+            self.parse("Ranma (cursed) (Ranma 1/2)")[0],
+            [("Ranma (cursed)", "Ranma 1/2")])
+
+    def test_empty_parens_fall_back_to_the_header(self):
+        self.assertEqual(
+            self.parse("[Trigun]\nVash ()")[0], [("Vash", "Trigun")])
+
+    def test_empty_brackets_clear_the_header(self):
+        entries, skipped = self.parse("[Trigun]\n[]\nVash")
+        self.assertEqual(entries, [])
+        self.assertEqual([line.reason for line in skipped], [NO_FANDOM])
+
+    def test_a_bare_name_with_no_header_is_skipped(self):
+        """The model requires a fandom, so there is nothing to create."""
+        entries, skipped = self.parse("Vash")
+        self.assertEqual(entries, [])
+        self.assertEqual(skipped[0].text, "Vash")
+
+    def test_an_overlong_field_is_skipped(self):
+        long_name = "V" * (FIELD_LIMIT + 1)
+        entries, skipped = self.parse(
+            "{} (Trigun)\nVash ({})".format(long_name, long_name))
+        self.assertEqual(entries, [])
+        self.assertEqual(len(skipped), 2)
+
+    def test_new_entries_drops_repeats_and_existing_pairs(self):
+        """Matching is case-insensitive on name and fandom together, so a
+        shared name across two fandoms still gets both."""
+        entries, _ = parse_paste(
+            "Vash (Trigun)\nvash (trigun)\nVash (Elsewhere)\nMeryl (Trigun)")
+        unseen = new_entries(entries, [("meryl", "TRIGUN")])
+        self.assertEqual([tuple(entry) for entry in unseen],
+                         [("Vash", "Trigun"), ("Vash", "Elsewhere")])
+
+
+class PasteAddTest(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("owner", password="pw")
+        self.charlist = CharacterList.objects.create(
+            owner=self.user, title="Mine")
+        self.client.force_login(self.user)
+
+    def test_paste_creates_characters_in_the_urls_list(self):
+        Character.objects.create(
+            characterlist=self.charlist, name="Vash", fandom="Trigun")
+        other_list = CharacterList.objects.create(
+            owner=self.user, title="Other")
+        response = self.client.post(
+            reverse("sorterinput:editlist", args=(self.charlist.id,)),
+            {"paste": "[Trigun]\nVash\nMeryl\nWolfwood (Trigun)\n[]\nOrphan"})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            sorted(self.charlist.character_set.values_list("name", flat=True)),
+            ["Meryl", "Vash", "Wolfwood"])
+        self.assertEqual(other_list.character_set.count(), 0)
 
 
 
