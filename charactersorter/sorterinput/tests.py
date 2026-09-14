@@ -200,3 +200,59 @@ class PostBodyAuthorizationTest(TestCase):
                  for name in ("Carol", "Dave")]
         return controller.models.SortRecord.objects.create(
             charlist=charlist, char1=chars[0], char2=chars[1], value=1)
+
+
+class CharHistoryViewTest(TestCase):
+    """The per-character rating-history page: owner-only, opponent-labelled,
+    and absent for controllers that keep no rating."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner", password="pw")
+        self.other = User.objects.create_user("other", password="pw")
+        self.charlist = CharacterList.objects.create(
+            owner=self.owner, title="Mine",
+            controller_type=CharacterList.GLICKO)
+        self.hero = Character.objects.create(
+            characterlist=self.charlist, name="Hero", fandom="Book")
+        self.foe = Character.objects.create(
+            characterlist=self.charlist, name="Villain</script>",
+            fandom="Book")
+        controller.models.SortRecord.objects.create(
+            charlist=self.charlist, char1=self.hero, char2=self.foe, value=1)
+
+    def url(self, charlist, char):
+        return reverse("sorterinput:charhistory", args=(charlist.id, char.id))
+
+    def test_owner_sees_the_opponent_inertly_inlined(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(self.charlist, self.hero))
+        self.assertEqual(response.status_code, 200)
+        # dumps_for_script escapes "<", so a scripty name can't break the block.
+        self.assertNotContains(response, "Villain</script>")
+        self.assertContains(response, "Villain\\u003c/script>")
+
+    def test_non_owner_gets_404(self):
+        self.client.force_login(self.other)
+        response = self.client.get(self.url(self.charlist, self.hero))
+        self.assertEqual(response.status_code, 404)
+
+    def test_foreign_char_id_is_scoped_to_the_url_list(self):
+        their_list = CharacterList.objects.create(
+            owner=self.other, title="Theirs",
+            controller_type=CharacterList.GLICKO)
+        their_char = Character.objects.create(
+            characterlist=their_list, name="Alice", fandom="Wonderland")
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(self.charlist, their_char))
+        self.assertEqual(response.status_code, 404)
+
+    def test_insertion_sort_list_has_no_history(self):
+        plain = CharacterList.objects.create(
+            owner=self.owner, title="Plain",
+            controller_type=CharacterList.INSERTION)
+        char = Character.objects.create(
+            characterlist=plain, name="Solo", fandom="Book")
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(plain, char))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "sorterinput/nohistory.html")

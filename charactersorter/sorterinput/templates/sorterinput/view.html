@@ -26,7 +26,12 @@ Characters:
 <ol>
 {% for char in sortedchars %}
 <li>
-<strong>{{ char.name }}</strong> from <strong>{{ char.fandom }}</strong>
+{% if has_graph %}
+<a href="{% url 'sorterinput:charhistory' charlist.id char.id %}"><strong>{{ char.name }}</strong></a>
+{% else %}
+<strong>{{ char.name }}</strong>
+{% endif %}
+from <strong>{{ char.fandom }}</strong>
 {% if annotations|get_item:char.id is not None %}
 ({{ annotations|get_item:char.id }})
 {% endif %}

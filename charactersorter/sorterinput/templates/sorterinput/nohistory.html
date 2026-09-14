@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}
+No rating history | Character Sorter
+{% endblock %}
+
+{% block body %}
+Sorry, the controller type for this character list doesn't track rating
+history.
+
+<p><a href="{% url 'sorterinput:viewlist' charlist.id %}">Back to viewing</a></p>
+{% endblock %}
