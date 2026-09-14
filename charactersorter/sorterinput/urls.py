@@ -8,6 +8,8 @@ urlpatterns = [
     path('editlists/', views.editcharlists, name='editcharlists'),
     path('<int:list_id>/', views.viewlist, name='viewlist'),
     path('<int:list_id>/graph/', views.graphlist, name='graphlist'),
+    path('<int:list_id>/char/<int:char_id>/history/', views.charhistory,
+         name='charhistory'),
     path('<int:list_id>/edit/', views.editlist, name='editlist'),
     path('<int:list_id>/sort/', views.sortlist, name='sortlist'),
     path('<int:list_id>/undo/', views.undo, name='undo'),

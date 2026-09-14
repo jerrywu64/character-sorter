@@ -19,12 +19,16 @@ from .paste import parse_paste, new_entries
 # A paste of junk shouldn't put a message per line in the session.
 SKIP_REPORT_LIMIT = 5
 
+# Keyed by the sign of SortRecord.value from this character's point of view.
+MATCH_OUTCOMES = {1: "Win", 0: "Tie", -1: "Loss"}
+MATCH_COLORS = {1: "#2ca02c", 0: "#7f7f7f", -1: "#d62728"}
+
 def requires_list_owner(f):
-    def checked_f(request, list_id, *args):
+    def checked_f(request, list_id, *args, **kwargs):
         if request.user.is_authenticated:
             charlist = get_object_or_404(CharacterList, pk=list_id)
             if charlist.owner.id == request.user.id or request.user.is_superuser:
-                return f(request, list_id, *args)
+                return f(request, list_id, *args, **kwargs)
         raise Http404("No CharacterList matches the given query.")
     return checked_f
 
@@ -137,6 +141,34 @@ def graphlist(request, list_id):
             "graph_info": graph_info
         }
         return render(request, "sorterinput/graph.html", context)
+
+@requires_list_owner
+def charhistory(request, list_id, char_id):
+    charlist, controller_obj = get_list_and_controller(list_id)
+    character = get_object_or_404(charlist.character_set, pk=char_id)
+    history = controller_obj.get_rating_history(charlist, character.id)
+    if history is None:
+        return render(request, "sorterinput/nohistory.html",
+                      {"charlist": charlist, "character": character})
+    points = history["history"]
+    signs = [(point["value"] > 0) - (point["value"] < 0) for point in points]
+    context = {
+        "charlist": charlist,
+        "character": character,
+        "rating": history["rating"],
+        "rd": history["rd"],
+        "opponents": controller.models.dumps_for_script(
+            [point["opponent"].name for point in points]),
+        "ratings": controller.models.dumps_for_script(
+            [point["rating"] for point in points]),
+        "double_rds": controller.models.dumps_for_script(
+            [2 * point["rd"] for point in points]),
+        "colors": controller.models.dumps_for_script(
+            [MATCH_COLORS[sign] for sign in signs]),
+        "outcomes": controller.models.dumps_for_script(
+            [MATCH_OUTCOMES[sign] for sign in signs]),
+    }
+    return render(request, "sorterinput/history.html", context)
 
 def plural(count, noun):
     return "{} {}{}".format(count, noun, "" if count == 1 else "s")

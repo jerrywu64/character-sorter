@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}
+{{ character.name }} history | Character Sorter
+{% endblock %}
+
+{% block js %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}
+
+{% block body %}
+<h1>Rating history: {{ character.name }} from {{ character.fandom }}
+</h1>
+
+<h2>Current rating {{ rating|floatformat:0 }} (RD {{ rd|floatformat:0 }})
+in {{ charlist.title }}</h2>
+
+<div id="graph"></div>
+
+<script>
+    GRAPH = document.getElementById('graph');
+    var opponents = {{ opponents|safe }};
+    var idx = opponents.map(function (_, i) { return i + 1; });
+    var trace = {
+        x: idx,
+        y: {{ ratings|safe }},
+        type: "scatter",
+        mode: "lines+markers",
+        name: "Rating",
+        text: opponents,
+        customdata: {{ outcomes|safe }},
+        hovertemplate:
+            "%{text}<br>Rating %{y:.0f}<br>%{customdata}<extra></extra>",
+        marker: {
+            size: 10,
+            color: {{ colors|safe }}
+        },
+        error_y: {
+            type: "data",
+            array: {{ double_rds|safe }},
+            visible: true
+        }
+    };
+    var layout = {
+        title: "Rating after each match (±2 RD)",
+        xaxis: {
+            title: "Opponent",
+            tickmode: "array",
+            tickvals: idx,
+            ticktext: opponents,
+            tickangle: 90
+        },
+        yaxis: {
+            title: "Glicko rating"
+        }
+    };
+    Plotly.newPlot(GRAPH, [trace], layout);
+</script>
+
+<p><a href="{% url 'sorterinput:viewlist' charlist.id %}">Back to viewing</a></p>
+{% endblock %}
