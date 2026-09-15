@@ -14,6 +14,17 @@ class CharacterList(models.Model):
         max_length=2, choices=CONTROLLER_CHOICES, default=INSERTION)
     show_images = models.BooleanField(default=False)
 
+    # Glicko tuning, per list, read by GlickoRatingController.settings_for.
+    # initial_rd sitting above max_decay_rd is what separates "never compared"
+    # from "compared long ago": at 450 a new character is ~99x likelier to be
+    # picked than a top-rated fully-decayed one, where sharing 350 made it 65x
+    # *less* likely. rd_reset_days is how long TYPICAL_RD takes to reach the
+    # ceiling; match_recency_days caps rematch weighting only, never decay.
+    initial_rd = models.PositiveIntegerField(default=450)
+    max_decay_rd = models.PositiveIntegerField(default=350)
+    rd_reset_days = models.PositiveIntegerField(default=365)
+    match_recency_days = models.PositiveIntegerField(default=90)
+
     def get_controller_class_name(self):
         for shortkey, name in self.CONTROLLER_CHOICES:
             if shortkey == self.controller_type:
