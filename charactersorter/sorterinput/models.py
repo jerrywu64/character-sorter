@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -20,10 +21,24 @@ class CharacterList(models.Model):
     # picked than a top-rated fully-decayed one, where sharing 350 made it 65x
     # *less* likely. rd_reset_days is how long TYPICAL_RD takes to reach the
     # ceiling; match_recency_days caps rematch weighting only, never decay.
-    initial_rd = models.PositiveIntegerField(default=450)
-    max_decay_rd = models.PositiveIntegerField(default=350)
-    rd_reset_days = models.PositiveIntegerField(default=365)
-    match_recency_days = models.PositiveIntegerField(default=90)
+    initial_rd = models.PositiveIntegerField(
+        default=450, validators=[MinValueValidator(1)],
+        help_text="Uncertainty for a character with no comparisons yet. Keep "
+                  "it above the decay ceiling, or new characters lose "
+                  "priority to stale ones.")
+    # Floor of 51: c^2 is (max_decay_rd^2 - TYPICAL_RD^2), so a ceiling at or
+    # below TYPICAL_RD makes it negative and sqrt() raises.
+    max_decay_rd = models.PositiveIntegerField(
+        default=350, validators=[MinValueValidator(51)],
+        help_text="Ceiling that idle time alone can push uncertainty to.")
+    rd_reset_days = models.PositiveIntegerField(
+        default=365, validators=[MinValueValidator(1)],
+        help_text="Days for a well-ranked character to drift up to that "
+                  "ceiling.")
+    match_recency_days = models.PositiveIntegerField(
+        default=90, validators=[MinValueValidator(1)],
+        help_text="Days before a rematch is weighted as freely as a pairing "
+                  "that has never been asked.")
 
     def get_controller_class_name(self):
         for shortkey, name in self.CONTROLLER_CHOICES:

@@ -3,6 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 import controller.models
+from .forms import AddCharlistForm
+from .forms import AddCharlistForm
 from .models import Character, CharacterList
 from .paste import FIELD_LIMIT, NO_FANDOM, parse_paste, new_entries
 
@@ -256,3 +258,90 @@ class CharHistoryViewTest(TestCase):
         response = self.client.get(self.url(plain, char))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "sorterinput/nohistory.html")
+
+class GlickoTuningFormTest(TestCase):
+    """The tuning is user-editable, so the bounds have to hold: settings_for
+    divides by rd_reset_days and takes sqrt of (max_decay_rd^2 - TYPICAL_RD^2).
+    """
+
+    def form(self, **overrides):
+        data = {
+            "title": "tuned",
+            "controller_type": CharacterList.GLICKO,
+            "initial_rd": 450,
+            "max_decay_rd": 350,
+            "rd_reset_days": 365,
+            "match_recency_days": 90,
+        }
+        data.update(overrides)
+        return AddCharlistForm(data)
+
+    def test_defaults_are_accepted(self):
+        self.assertTrue(self.form().is_valid())
+
+    def test_zero_reset_days_is_rejected(self):
+        form = self.form(rd_reset_days=0)
+        self.assertFalse(form.is_valid())
+        self.assertIn("rd_reset_days", form.errors)
+
+    def test_ceiling_at_or_below_typical_rd_is_rejected(self):
+        for ceiling in (0, 40, 50):
+            form = self.form(max_decay_rd=ceiling)
+            self.assertFalse(
+                form.is_valid(),
+                "max_decay_rd={} should be rejected".format(ceiling))
+            self.assertIn("max_decay_rd", form.errors)
+
+    def test_sliders_carry_their_bounds(self):
+        rendered = str(self.form()["max_decay_rd"])
+        self.assertIn('type="range"', rendered)
+        self.assertIn('min="51"', rendered)
+
+
+class GlickoTuningFormTest(TestCase):
+    """The tuning is user-editable, so the bounds have to hold: settings_for
+    divides by rd_reset_days and takes sqrt of (max_decay_rd^2 - TYPICAL_RD^2).
+    """
+
+    def form(self, **overrides):
+        data = {
+            "title": "tuned",
+            "controller_type": CharacterList.GLICKO,
+            "initial_rd": 450,
+            "max_decay_rd": 350,
+            "rd_reset_days": 365,
+            "match_recency_days": 90,
+        }
+        data.update(overrides)
+        return AddCharlistForm(data)
+
+    def test_defaults_are_accepted(self):
+        self.assertTrue(self.form().is_valid())
+
+    def test_zero_reset_days_is_rejected(self):
+        form = self.form(rd_reset_days=0)
+        self.assertFalse(form.is_valid())
+        self.assertIn("rd_reset_days", form.errors)
+
+    def test_ceiling_at_or_below_typical_rd_is_rejected(self):
+        for ceiling in (0, 40, 50):
+            form = self.form(max_decay_rd=ceiling)
+            self.assertFalse(
+                form.is_valid(),
+                "max_decay_rd={} should be rejected".format(ceiling))
+            self.assertIn("max_decay_rd", form.errors)
+
+    def test_slider_carries_its_bounds(self):
+        rendered = str(self.form()["max_decay_rd"])
+        self.assertIn('type="range"', rendered)
+        self.assertIn('min="51"', rendered)
+
+    def test_tuning_is_separable_from_the_rest_of_the_form(self):
+        form = self.form()
+        self.assertEqual(
+            [f.name for f in form.tuning_fields()],
+            ["initial_rd", "max_decay_rd", "rd_reset_days",
+             "match_recency_days"])
+        self.assertNotIn(
+            "initial_rd", [f.name for f in form.basic_fields()])
+        self.assertIn("title", [f.name for f in form.basic_fields()])

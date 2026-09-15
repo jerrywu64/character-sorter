@@ -4,6 +4,45 @@
 Editing Character Lists | Character Sorter
 {% endblock %}
 
+{% block js %}
+<script>
+// Each slider is paired with a number box for exact entry. Only the slider
+// carries the field name, so the pair submits one value. Assigning .value
+// fires no event, so binding both ways cannot loop.
+$(function () {
+    $("input.tuning-number").each(function () {
+        var box = this;
+        var slider = document.getElementById(box.getAttribute("data-range"));
+        if (!slider) {
+            return;
+        }
+        box.min = slider.min;
+        box.max = slider.max;
+        box.step = slider.step;
+        $(slider).on("input change", function () {
+            box.value = slider.value;
+        });
+        // On input, let the slider follow without clamping what is half-typed;
+        // on change, pull the box back inside the bounds.
+        $(box).on("input", function () {
+            slider.value = box.value;
+        });
+        $(box).on("change", function () {
+            var value = Number(box.value);
+            if (box.value === "" || isNaN(value)) {
+                box.value = slider.value;
+                return;
+            }
+            value = Math.min(
+                Math.max(value, Number(slider.min)), Number(slider.max));
+            box.value = value;
+            slider.value = value;
+        });
+    });
+});
+</script>
+{% endblock %}
+
 {% block body %}
 {% if error_message %}<p><strong>{{ error_message }}</strong></p>{% endif %}
 
@@ -17,13 +56,14 @@ Editing Character Lists | Character Sorter
         {% for form in modformset.forms %}
         {% if forloop.first %}
         <thead><tr>
-                {% for field in form.visible_fields %}
+                {% for field in form.basic_fields %}
                 <th>{{ field.label|capfirst }}</th>
                 {% endfor %}
+                <th>Tuning</th>
             </tr></thead>
             {% endif %}
             <tr class={% cycle "row1" "row2" %}>
-                {% for field in form.visible_fields %}
+                {% for field in form.basic_fields %}
                 <td data-label="{{ field.label|capfirst }}">
                     {# Include the hidden fields in the form #}
                     {% if forloop.first %}
@@ -35,6 +75,20 @@ Editing Character Lists | Character Sorter
                     {{ field }}
                 </td>
                 {% endfor %}
+                <td data-label="Tuning">
+                    <details class="tuning">
+                        <summary>Glicko</summary>
+                        {% for field in form.tuning_fields %}
+                        <p>{{ field.errors.as_ul }}
+                            {{ field.label_tag }} {{ field }}
+                            <input type="number" class="tuning-number"
+                                   data-range="{{ field.id_for_label }}"
+                                   value="{{ field.value }}"
+                                   aria-label="{{ field.label }}, exact value"
+                                   ></p>
+                        {% endfor %}
+                    </details>
+                </td>
             </tr>
             {% endfor %}
     </table>
@@ -44,7 +98,22 @@ Editing Character Lists | Character Sorter
 
 <form action="{% url 'sorterinput:editcharlists' %}" method="post">
     {% csrf_token %}
-    {{ addform.as_p }}
+    {% for field in addform.basic_fields %}
+    <p>{{ field.errors.as_ul }}{{ field.label_tag }} {{ field }}</p>
+    {% endfor %}
+    <details class="tuning">
+        <summary>Glicko tuning &mdash; only used by Glicko lists</summary>
+        {% for field in addform.tuning_fields %}
+        <p>{{ field.errors.as_ul }}{{ field.label_tag }} {{ field }}
+            <input type="number" class="tuning-number"
+                   data-range="{{ field.id_for_label }}"
+                   value="{{ field.value }}"
+                   aria-label="{{ field.label }}, exact value">
+            {% if field.help_text %}
+            <span class="help">{{ field.help_text }}</span>
+            {% endif %}</p>
+        {% endfor %}
+    </details>
 
     <input type="submit" value="Add!" />
 </form>
