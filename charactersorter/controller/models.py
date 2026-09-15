@@ -171,10 +171,14 @@ class GlickoRatingController(Controller):
     be opimized for this usage, I won't use it for the time being."""
 
     DEFAULT_RATING = 1500
-    INITIAL_RD = 350
+    # INITIAL_RD above MAX_DECAY_RD is what separates "never compared" from
+    # "compared long ago". At 450 a new character is ~99x likelier to be picked
+    # than a top-rated fully-decayed one; sharing 350 made it 65x *less* likely.
+    # Cost: its ranking key (rating - 2*rd) starts at 600, ~18 places lower.
+    INITIAL_RD = 450
     MAX_DECAY_RD = 350
     TYPICAL_RD = 50
-    RD_RESET_TIME = 90  # in days. c^2 = (max_decay_rd^2 - typical_rd^2)/reset
+    RD_RESET_TIME = 365  # in days. c^2 = (max_decay_rd^2 - typical_rd^2)/reset
     RD_INCREASE_SCALE_SQ = (MAX_DECAY_RD ** 2 - TYPICAL_RD ** 2) / RD_RESET_TIME
     MATCH_RECENCY_CAP = 90  # in days; rematch weighting only, never decay.
     CONFIDENCE_BOOST = 2  # Count each match this many times.
