@@ -110,3 +110,27 @@ table.form th, table.form td { padding: 0.25rem; text-align: left; vertical-alig
 @media (pointer: coarse) {
     table.form input[type="checkbox"] { width: 1.5rem; height: 1.5rem; }
 }
+
+/* Glicko tuning, folded away: the defaults suit almost every list. */
+details.tuning summary {
+    cursor: pointer;
+    font-size: 0.9em;
+}
+details.tuning p {
+    margin: 0.4em 0;
+}
+details.tuning input[type="range"] {
+    width: 11em;
+    vertical-align: middle;
+}
+details.tuning input.tuning-number {
+    width: 5em;
+    margin-left: 0.4em;
+    vertical-align: middle;
+}
+.help {
+    display: block;
+    font-size: 0.85em;
+    color: #555;
+    max-width: 34em;
+}

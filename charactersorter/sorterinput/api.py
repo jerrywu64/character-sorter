@@ -17,7 +17,7 @@ from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_http_methods
 
 import controller.models
-from .forms import MaybeAppendShowImages
+from .forms import MaybeAppendShowImages, TUNING_FIELDS, TuningModelForm
 from .models import Character, CharacterList
 from .views import get_char_image
 
@@ -27,7 +27,8 @@ COMPARISON_VALUES = (-1, 0, 1)
 CharacterForm = forms.modelform_factory(Character, fields=["name", "fandom"])
 
 CharacterListForm = forms.modelform_factory(
-    CharacterList, fields=MaybeAppendShowImages(["title", "controller_type"]))
+    CharacterList, form=TuningModelForm,
+    fields=MaybeAppendShowImages(["title", "controller_type"]) + TUNING_FIELDS)
 
 def api_error(status, message, fields=None):
     payload = {"error": message}
@@ -140,6 +141,7 @@ def list_json(charlist):
         "title": charlist.title,
         "controller_type": charlist.controller_type,
         "show_images": charlist.show_images,
+        "tuning": {name: getattr(charlist, name) for name in TUNING_FIELDS},
     }
 
 def char_json(char, show_images=False):
