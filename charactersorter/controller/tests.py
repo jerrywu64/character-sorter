@@ -187,7 +187,8 @@ class GlickoRatingControllerTest(ControllerTest):
         last_matches = SortRecord.get_last_matches(self.charlist)
         weights = [
             self.controller.get_match_weight(
-                char1_id, char2.id, rating_info, last_matches)
+                char1_id, char2.id, rating_info, last_matches,
+                self.controller.settings_for(self.charlist))
             for char2 in self.characters[1:]]
         for weight in weights[:-1]:
             self.assertLess(weight, weights[-1])
@@ -218,34 +219,58 @@ class GlickoRatingControllerTest(ControllerTest):
     def test_rd_after_time_separates_stale_from_new(self):
         """Idle time alone must never make a rated character look unrated."""
         glicko = GlickoRatingController
+        conf = glicko.settings_for(self.charlist)
         now = timezone.now()
         long_ago = now - datetime.timedelta(days=5 * 365)
 
         # Never compared: the initial deviation, whatever the clock says.
-        self.assertEqual(glicko.rd_after_time(None, None, now), glicko.INITIAL_RD)
+        self.assertEqual(
+            glicko.rd_after_time(None, None, now, conf), conf.initial_rd)
 
         # Rated long ago: grows, but stops short of a new character's.
-        stale = glicko.rd_after_time(glicko.TYPICAL_RD, long_ago, now)
-        self.assertEqual(stale, glicko.MAX_DECAY_RD)
-        self.assertLess(stale, glicko.INITIAL_RD)
+        stale = glicko.rd_after_time(glicko.TYPICAL_RD, long_ago, now, conf)
+        self.assertEqual(stale, conf.max_decay_rd)
+        self.assertLess(stale, conf.initial_rd)
 
-        # A deviation already past the ceiling freezes; it is never pulled down.
-        above = glicko.INITIAL_RD
-        self.assertEqual(glicko.rd_after_time(above, long_ago, now), above)
+        # A deviation already past the ceiling freezes; never pulled down.
+        above = conf.initial_rd
+        self.assertEqual(
+            glicko.rd_after_time(above, long_ago, now, conf), above)
 
     def test_rd_reaches_the_ceiling_in_one_reset_time(self):
-        """RD_RESET_TIME is defined as the time TYPICAL_RD takes to decay."""
+        """rd_reset_days is the time TYPICAL_RD takes to reach the ceiling."""
         glicko = GlickoRatingController
+        conf = glicko.settings_for(self.charlist)
         now = timezone.now()
-        one_reset = now - datetime.timedelta(days=glicko.RD_RESET_TIME)
+        one_reset = now - datetime.timedelta(
+            days=self.charlist.rd_reset_days)
         self.assertAlmostEqual(
-            glicko.rd_after_time(glicko.TYPICAL_RD, one_reset, now),
-            glicko.MAX_DECAY_RD, places=6)
+            glicko.rd_after_time(glicko.TYPICAL_RD, one_reset, now, conf),
+            conf.max_decay_rd, places=6)
         # Half that long, and it is still meaningfully short of the ceiling.
-        half = now - datetime.timedelta(days=glicko.RD_RESET_TIME / 2)
+        half = now - datetime.timedelta(
+            days=self.charlist.rd_reset_days / 2)
         self.assertLess(
-            glicko.rd_after_time(glicko.TYPICAL_RD, half, now),
-            glicko.MAX_DECAY_RD)
+            glicko.rd_after_time(glicko.TYPICAL_RD, half, now, conf),
+            conf.max_decay_rd)
+
+    def test_settings_come_from_the_list_not_the_class(self):
+        """A list carrying its own tuning must be honoured, so the migration
+        can hold existing lists at the old behaviour."""
+        glicko = GlickoRatingController
+        self.charlist.initial_rd = 350
+        self.charlist.max_decay_rd = 350
+        self.charlist.rd_reset_days = 90
+        self.charlist.save()
+        conf = glicko.settings_for(self.charlist)
+        now = timezone.now()
+        # Old behaviour: stale and never-compared land on the same deviation.
+        self.assertEqual(conf.initial_rd, conf.max_decay_rd)
+        self.assertEqual(
+            glicko.rd_after_time(
+                glicko.TYPICAL_RD, now - datetime.timedelta(days=90), now,
+                conf),
+            glicko.rd_after_time(None, None, now, conf))
 
     def test_char_weight_prefers_better_char(self):
         """Performs a single match, and verifies that the resulting weight is
