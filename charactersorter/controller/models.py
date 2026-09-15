@@ -171,11 +171,12 @@ class GlickoRatingController(Controller):
     be opimized for this usage, I won't use it for the time being."""
 
     DEFAULT_RATING = 1500
-    DEFAULT_RD = 350
+    INITIAL_RD = 350
+    MAX_DECAY_RD = 350
     TYPICAL_RD = 50
-    MIN_RD = 30
-    RD_RESET_TIME = 90  # in days. c^2 = (default_rd^2 - typical_rd^2)/reset_time
-    RD_INCREASE_SCALE_SQ = (DEFAULT_RD ** 2 - TYPICAL_RD ** 2) / RD_RESET_TIME
+    RD_RESET_TIME = 90  # in days. c^2 = (max_decay_rd^2 - typical_rd^2)/reset
+    RD_INCREASE_SCALE_SQ = (MAX_DECAY_RD ** 2 - TYPICAL_RD ** 2) / RD_RESET_TIME
+    MATCH_RECENCY_CAP = 90  # in days; rematch weighting only, never decay.
     CONFIDENCE_BOOST = 2  # Count each match this many times.
     Q = math.log(10) / 400
 
@@ -199,10 +200,14 @@ class GlickoRatingController(Controller):
     @classmethod
     def rd_after_time(cls, old_rd, old_time, new_time):
         if old_time is None:
-            return cls.DEFAULT_RD
+            return cls.INITIAL_RD
+        # Freeze rather than clamp: an rd already past the ceiling (a lopsided
+        # first match can leave one there) must not be pulled down.
+        if old_rd >= cls.MAX_DECAY_RD:
+            return old_rd
         delta_days = (new_time - old_time).total_seconds() / (3600 * 24)
         return min(math.sqrt(old_rd ** 2 + cls.RD_INCREASE_SCALE_SQ * delta_days),
-                   cls.DEFAULT_RD)
+                   cls.MAX_DECAY_RD)
 
     @classmethod
     def g_of_rd(cls, rd):
@@ -271,7 +276,7 @@ class GlickoRatingController(Controller):
                 "timestamp", "id").select_related()
             char_ids = charlist.character_set.all().values_list("id", flat=True)
             rating_info = {
-                char_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
+                char_id: (self.DEFAULT_RATING, self.INITIAL_RD, None)
                 for char_id in char_ids}
             last_matches = {}
             for record in records:
@@ -309,10 +314,10 @@ class GlickoRatingController(Controller):
         _, inv_dsquared, _, _ = cls.compute_values(r, rd, r_other, rd_other)
         last_match = last_matches.get((char_id, opponent_id), None)
         days_since_last = (
-            cls.RD_RESET_TIME if last_match is None else
+            cls.MATCH_RECENCY_CAP if last_match is None else
             min((timezone.now() - last_match.timestamp).total_seconds()
                 / (3600 * 24),
-                cls.RD_RESET_TIME))
+                cls.MATCH_RECENCY_CAP))
         return days_since_last * inv_dsquared
 
     @classmethod
@@ -398,7 +403,7 @@ class GlickoRatingController(Controller):
             "timestamp", "id").select_related()
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         rating_info = {
-            other_id: (self.DEFAULT_RATING, self.DEFAULT_RD, None)
+            other_id: (self.DEFAULT_RATING, self.INITIAL_RD, None)
             for other_id in char_ids}
         history = []
         for record in records:
