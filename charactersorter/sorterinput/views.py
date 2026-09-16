@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.http import HttpResponseRedirect, Http404
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse
+from django.utils.http import urlencode
 from django.utils.text import Truncator
 from django.views import generic
 from django.conf import settings
@@ -18,6 +19,10 @@ from .paste import parse_paste, new_entries
 
 # A paste of junk shouldn't put a message per line in the session.
 SKIP_REPORT_LIMIT = 5
+
+# Focusing is suggested to stop once the best remaining match is worth this
+# little compared with the one the run opened on.
+FOCUS_STOP_FRACTION = 0.1
 
 # Keyed by the sign of SortRecord.value from this character's point of view.
 MATCH_OUTCOMES = {1: "Win", 0: "Tie", -1: "Loss"}
@@ -235,9 +240,40 @@ def editlist(request, list_id):
     }
     return render(request, "sorterinput/edit.html", context)
 
+def focus_character(charlist, value):
+    """?focus= resolved against this list. A foreign id 404s; a malformed one
+    is treated as no focus, since it can only come from a mangled link."""
+    if not value:
+        return None
+    try:
+        char_id = int(value)
+    except ValueError:
+        return None
+    return get_object_or_404(Character, pk=char_id, characterlist=charlist)
+
+def focus_run_query(focus, opening):
+    """The focus run as a query string, so it survives POST-redirect-GET
+    without any server-side state."""
+    if focus is None:
+        return ""
+    params = [("focus", focus.id)]
+    if opening is not None:
+        params.append(("w0", "{:.6g}".format(opening)))
+    return "?" + urlencode(params)
+
+def opening_weight(value, current):
+    """The weight the run started at. Absent or unusable means this request
+    starts the run, so the current weight is the opening one."""
+    try:
+        opening = float(value)
+    except (TypeError, ValueError):
+        return current
+    return opening if opening > 0 else current
+
 @requires_list_owner
 def sortlist(request, list_id):
     charlist, controller_obj = get_list_and_controller(list_id)
+    focus = focus_character(charlist, request.GET.get("focus"))
     error_msg = None
     if request.method == "POST":
         try:
@@ -247,10 +283,13 @@ def sortlist(request, list_id):
                 request.POST["char1"], request.POST["char2"],
                 result)
             return HttpResponseRedirect(reverse(
-                'sorterinput:sortlist', args=(list_id,)))
+                'sorterinput:sortlist', args=(list_id,))
+                + focus_run_query(focus, opening_weight(
+                    request.GET.get("w0"), None)))
         except KeyError:
             error_msg = "You didn't select a choice."
-    comparison = controller_obj.get_next_comparison(charlist)
+    comparison = controller_obj.get_next_comparison(
+        charlist, focus=None if focus is None else focus.id)
     if comparison is None:
         char1, char2 = None, None
         img1, img2 = None, None
@@ -260,6 +299,8 @@ def sortlist(request, list_id):
         img1 = get_char_image(char1) if charlist.show_images else None
         char2 = Character.objects.get(pk=char2)
         img2 = get_char_image(char2) if charlist.show_images else None
+    weight = controller_obj.best_match_weight
+    opening = opening_weight(request.GET.get("w0"), weight)
     try:
         lastsort = controller.models.SortRecord.objects.filter(
             charlist=charlist).order_by("-timestamp", "-id")[0]
@@ -275,7 +316,13 @@ def sortlist(request, list_id):
         "img2": img2,
         "done": comparison is None,
         "lastsort": lastsort,
-        "error_message": error_msg
+        "error_message": error_msg,
+        "focus": focus,
+        "focus_query": focus_run_query(focus, opening),
+        "can_focus": weight is not None,
+        "focus_exhausted": (
+            focus is not None and weight is not None
+            and weight < FOCUS_STOP_FRACTION * opening),
     }
     return render(request, "sorterinput/sort.html", context)
 
@@ -293,6 +340,12 @@ def undo(request, list_id):
     lastsort = get_object_or_404(
         controller.models.SortRecord, pk=int(request.POST["last"]),
         charlist_id=list_id)
+    # Resolved before the delete: a bad focus id must not 404 a request that
+    # has already destroyed the record.
+    charlist = get_object_or_404(CharacterList, pk=list_id)
+    query = focus_run_query(
+        focus_character(charlist, request.GET.get("focus")),
+        opening_weight(request.GET.get("w0"), None))
     lastsort.delete()
     return HttpResponseRedirect(reverse(
-        'sorterinput:sortlist', args=(list_id,)))
+        'sorterinput:sortlist', args=(list_id,)) + query)

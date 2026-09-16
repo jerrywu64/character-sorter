@@ -336,3 +336,48 @@ class RatingHistoryTest(ApiTestCase):
             characterlist=charlist, name="Alice", fandom="Fandom")
         self.assertEqual(
             self.request("get", self.url_for(charlist, char)).status_code, 404)
+
+
+class FocusTest(ApiTestCase):
+    """?focus= pins char1 without any server-side state; match_weight is what
+    lets a client decide the run has stopped paying."""
+
+    def setUp(self):
+        super().setUp()
+        self.third = Character.objects.create(
+            characterlist=self.mine, name="Carol", fandom="Fandom")
+
+    def next_url(self, charlist, focus=None):
+        url = "/api/lists/{}/next".format(charlist.id)
+        return url if focus is None else "{}?focus={}".format(url, focus)
+
+    def test_focus_pins_char1_over_repeated_samples(self):
+        for _ in range(8):
+            body = body_of(self.client.get(
+                self.next_url(self.mine, self.third.id)))
+            self.assertEqual(body["char1"]["id"], self.third.id)
+            self.assertNotEqual(body["char2"]["id"], self.third.id)
+
+    def test_a_character_from_another_list_is_refused(self):
+        response = self.client.get(
+            self.next_url(self.mine, self.theirs.chars[0].id))
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_malformed_focus_is_refused(self):
+        response = self.client.get(self.next_url(self.mine, "Carol"))
+        self.assertEqual(response.status_code, 400)
+
+    def test_match_weight_is_reported_and_absent_focus_still_samples(self):
+        body = body_of(self.client.get(self.next_url(self.mine)))
+        self.assertGreater(body["match_weight"], 0)
+
+    def test_an_insertion_sort_list_reports_no_weight_and_ignores_focus(self):
+        charlist = CharacterList.objects.create(
+            owner=self.attacker, title="Insertion",
+            controller_type=CharacterList.INSERTION)
+        chars = [Character.objects.create(
+            characterlist=charlist, name=name, fandom="Fandom")
+            for name in ("Alice", "Bob", "Carol")]
+        body = body_of(self.client.get(self.next_url(charlist, chars[2].id)))
+        self.assertIsNone(body["match_weight"])
+        self.assertFalse(body["done"])
