@@ -7,7 +7,6 @@ from .forms import AddCharlistForm
 from .forms import AddCharlistForm
 from .models import Character, CharacterList
 from .paste import FIELD_LIMIT, NO_FANDOM, parse_paste, new_entries
-from .views import focus_run_query
 
 class ControllerTypeIntegrityTest(TestCase):
     def test_controller_type_integrity(self):
@@ -389,15 +388,13 @@ class SortFocusViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.context["focus"])
 
-    def test_answering_a_comparison_keeps_the_run_and_its_opening_weight(self):
-        query = "?focus={}&w0=1.5".format(self.chars[0].id)
+    def test_answering_a_comparison_keeps_the_run(self):
         response = self.client.post(
-            self.sort_url(query),
+            self.sort_url("?focus={}".format(self.chars[0].id)),
             {"char1": str(self.chars[0].id), "char2": str(self.chars[1].id),
              "sort": "1"})
         self.assertEqual(response.status_code, 302)
         self.assertIn("focus={}".format(self.chars[0].id), response.url)
-        self.assertIn("w0=1.5", response.url)
 
     def test_undo_keeps_the_run(self):
         record = controller.models.SortRecord.objects.create(
@@ -405,21 +402,10 @@ class SortFocusViewTest(TestCase):
             value=1)
         response = self.client.post(
             reverse("sorterinput:undo", args=(self.charlist.id,))
-            + "?focus={}&w0=1.5".format(self.chars[0].id),
+            + "?focus={}".format(self.chars[0].id),
             {"last": str(record.id)})
         self.assertEqual(response.status_code, 302)
         self.assertIn("focus={}".format(self.chars[0].id), response.url)
-
-    def test_the_first_request_of_a_run_is_never_exhausted(self):
-        response = self.client.get(
-            self.sort_url("?focus={}".format(self.chars[0].id)))
-        self.assertFalse(response.context["focus_exhausted"])
-
-    def test_a_collapsed_weight_suggests_stopping(self):
-        response = self.client.get(
-            self.sort_url("?focus={}&w0=1e9".format(self.chars[0].id)))
-        self.assertTrue(response.context["focus_exhausted"])
-        self.assertContains(response, "will tell you little more")
 
     def test_an_insertion_sort_list_offers_no_focus_links(self):
         charlist = CharacterList.objects.create(
@@ -434,12 +420,16 @@ class SortFocusViewTest(TestCase):
         self.assertNotContains(response, "against the whole list")
 
     def test_a_run_offers_only_the_opponent_as_the_next_focus(self):
+        """Scoped to the offer itself: the form and undo actions carry the
+        focused id too, so a whole-page search would always match."""
         response = self.client.get(
             self.sort_url("?focus={}".format(self.chars[0].id)))
         char2 = response.context["char2"]
-        self.assertContains(response, "?focus={}".format(char2.id))
-        self.assertNotContains(
-            response, "?focus={}\"".format(self.chars[0].id))
+        html = response.content.decode("utf-8")
+        offer = html[html.index("Rank one against the whole list"):]
+        offer = offer[:offer.index("</p>")]
+        self.assertIn("?focus={}".format(char2.id), offer)
+        self.assertNotIn("?focus={}".format(self.chars[0].id), offer)
 
     def test_undo_with_a_foreign_focus_id_keeps_the_record(self):
         record = controller.models.SortRecord.objects.create(
@@ -452,11 +442,3 @@ class SortFocusViewTest(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(controller.models.SortRecord.objects.filter(
             pk=record.pk).exists())
-
-    def test_the_generated_query_round_trips_an_exponent_weight(self):
-        """A weight formatted as 1e+09 must not come back with the plus
-        decoded as a space."""
-        query = focus_run_query(self.chars[0], 1e9)
-        response = self.client.get(self.sort_url(query))
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context["focus_exhausted"])
