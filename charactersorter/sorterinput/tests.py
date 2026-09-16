@@ -7,6 +7,7 @@ from .forms import AddCharlistForm
 from .forms import AddCharlistForm
 from .models import Character, CharacterList
 from .paste import FIELD_LIMIT, NO_FANDOM, parse_paste, new_entries
+from .views import focus_run_query
 
 class ControllerTypeIntegrityTest(TestCase):
     def test_controller_type_integrity(self):
@@ -451,3 +452,11 @@ class SortFocusViewTest(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(controller.models.SortRecord.objects.filter(
             pk=record.pk).exists())
+
+    def test_the_generated_query_round_trips_an_exponent_weight(self):
+        """A weight formatted as 1e+09 must not come back with the plus
+        decoded as a space."""
+        query = focus_run_query(self.chars[0], 1e9)
+        response = self.client.get(self.sort_url(query))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["focus_exhausted"])
