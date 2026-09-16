@@ -98,6 +98,13 @@ class InsertionSortControllerTest(ControllerTest):
             self.register_comparison(char1, char2)
         self.assertSorted()
 
+    def test_focus_is_ignored_and_no_weight_is_reported(self):
+        focus = self.characters[3].id
+        self.assertEqual(
+            self.controller.get_next_comparison(self.charlist, focus=focus),
+            self.controller.get_next_comparison(self.charlist))
+        self.assertIsNone(self.controller.best_match_weight)
+
 class GlickoRatingControllerTest(ControllerTest):
 
     def __init__(self, *args, **kwargs):
@@ -283,3 +290,26 @@ class GlickoRatingControllerTest(ControllerTest):
         weights = self.controller.get_char_weights(
                 char_ids, rating_info)
         self.assertGreater(weights[0], weights[1])
+
+    def test_focus_pins_char1_and_leaves_the_opponent_sampled(self):
+        focus = self.characters[3].id
+        opponents = set()
+        for _ in range(30):
+            char1, char2 = self.controller.get_next_comparison(
+                self.charlist, focus=focus)
+            self.assertEqual(char1, focus)
+            self.assertNotEqual(char2, focus)
+            opponents.add(char2)
+        self.assertGreater(len(opponents), 1)
+
+    def test_the_reported_weight_is_the_best_available_opponent(self):
+        """Focusing reports the max, not the mean or the sampled pair's."""
+        focus = self.characters[3].id
+        self.controller.get_next_comparison(self.charlist, focus=focus)
+        settings = self.controller.settings_for(self.charlist)
+        expected = max(
+            self.controller.get_match_weight(
+                focus, opponent.id, self.controller.rating_info,
+                self.controller.last_matches, settings)
+            for opponent in self.characters if opponent.id != focus)
+        self.assertAlmostEqual(self.controller.best_match_weight, expected)

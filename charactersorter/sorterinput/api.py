@@ -96,6 +96,16 @@ def int_field(data, name):
     except (TypeError, ValueError):
         raise ApiError(400, "Field {} must be an integer.".format(name))
 
+def focus_param(charlist, value):
+    """Resolves ?focus= to an id owned by this list, or None if absent."""
+    if value is None or value == "":
+        return None
+    try:
+        char_id = int(value)
+    except (TypeError, ValueError):
+        raise ApiError(400, "Field focus must be an integer.")
+    return charlist.character_set.get(id=char_id).id
+
 def comparison_value(data):
     value = int_field(data, "value")
     if value not in COMPARISON_VALUES:
@@ -224,12 +234,14 @@ def character_detail(request, list_id, char_id):
 def next_comparison(request, list_id):
     charlist = owned_list(request, list_id)
     controller_obj = controller_for(charlist)
-    pair = controller_obj.get_next_comparison(charlist)
+    focus = focus_param(charlist, request.GET.get("focus"))
+    pair = controller_obj.get_next_comparison(charlist, focus=focus)
     data = {
         "done": pair is None,
         "char1": None,
         "char2": None,
         "progress": controller_obj.get_progress_info(charlist),
+        "match_weight": controller_obj.best_match_weight,
     }
     if pair is not None:
         by_id = {char.id: char

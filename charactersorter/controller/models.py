@@ -31,6 +31,9 @@ class Controller(abc.ABC):
         # that this is not totally reliable because e.g. SortRecords may be
         # modified through other means.
         self.dirty = True
+        # Set by get_next_comparison when the controller ranks by weight;
+        # see get_match_weight. None means "no weight to report".
+        self.best_match_weight = None
 
     @abc.abstractmethod
     def get_sorted_chars(self, charlist):
@@ -38,8 +41,9 @@ class Controller(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_next_comparison(self, charlist):
-        """Retrieves the next pair of char ids to compare, or None"""
+    def get_next_comparison(self, charlist, focus=None):
+        """Retrieves the next pair of char ids to compare, or None. If focus
+        is given and the controller supports it, that character is char1."""
         pass
 
     def register_comparison(self, charlist, char1_id, char2_id, value):
@@ -142,7 +146,8 @@ class InsertionSortController(Controller):
                 sorted_chars.append(char_id)
         return sorted_chars
 
-    def get_next_comparison(self, charlist):
+    def get_next_comparison(self, charlist, focus=None):
+        """focus is ignored: the next pair is already determined."""
         self.insertion_sort(charlist)
         return self.compair
 
@@ -368,22 +373,29 @@ class GlickoRatingController(Controller):
 
         return char_weights
 
-    def get_next_comparison(self, charlist):
-        """Retrieves the next pair of characters to compare, or None"""
+    def get_next_comparison(self, charlist, focus=None):
+        """Retrieves the next pair of characters to compare, or None. focus
+        pins char1 instead of sampling it; the opponent is chosen the same way
+        either way. Also records the best opponent weight on the instance, as
+        a caller-visible measure of how much is left to learn."""
         char_ids = charlist.character_set.all().values_list("id", flat=True)
         if len(char_ids) < 2:
             return None
         self.compute_ratings(charlist)
-        # Pick a character based on how uncertain their rating is, proportional
-        # to the cube of the uncertainty.
-        char_weights = self.get_char_weights(char_ids, self.rating_info)
-        char_id = np.random.choice(char_ids, p=char_weights)
+        if focus is not None:
+            char_id = focus
+        else:
+            # Pick a character based on how uncertain their rating is,
+            # proportional to the cube of the uncertainty.
+            char_weights = self.get_char_weights(char_ids, self.rating_info)
+            char_id = np.random.choice(char_ids, p=char_weights)
         # Select their opponent:
         opponents = [opponent for opponent in char_ids if opponent != char_id]
         opponent_weights = np.array([self.get_match_weight(
             char_id, opponent, self.rating_info, self.last_matches,
             self.settings_for(charlist))
             for opponent in opponents])
+        self.best_match_weight = float(np.max(opponent_weights))
         opponent_weights /= np.sum(opponent_weights)
         return char_id, np.random.choice(opponents, p=opponent_weights)
 
