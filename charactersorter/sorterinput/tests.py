@@ -345,3 +345,109 @@ class GlickoTuningFormTest(TestCase):
         self.assertNotIn(
             "initial_rd", [f.name for f in form.basic_fields()])
         self.assertIn("title", [f.name for f in form.basic_fields()])
+
+
+class SortFocusViewTest(TestCase):
+    """The focus run lives entirely in the query string, so it has to survive
+    the POST-redirect-GET and the undo without any server-side state."""
+
+    def setUp(self):
+        self.owner = User.objects.create_user("owner", password="pw")
+        self.stranger = User.objects.create_user("stranger", password="pw")
+        self.charlist = CharacterList.objects.create(
+            owner=self.owner, title="Mine",
+            controller_type=CharacterList.GLICKO)
+        self.chars = [Character.objects.create(
+            characterlist=self.charlist, name=name, fandom="Fandom")
+            for name in ("Alice", "Bob", "Carol")]
+        self.theirs = CharacterList.objects.create(
+            owner=self.stranger, title="Theirs",
+            controller_type=CharacterList.GLICKO)
+        self.their_char = Character.objects.create(
+            characterlist=self.theirs, name="Mallory", fandom="Nowhere")
+        self.client.force_login(self.owner)
+
+    def sort_url(self, query=""):
+        return reverse(
+            "sorterinput:sortlist", args=(self.charlist.id,)) + query
+
+    def test_focus_pins_char1_and_names_it_on_the_page(self):
+        for _ in range(6):
+            response = self.client.get(
+                self.sort_url("?focus={}".format(self.chars[2].id)))
+            self.assertEqual(response.context["char1"], self.chars[2])
+        self.assertContains(response, "Ranking <strong>Carol</strong>")
+
+    def test_a_foreign_focus_id_is_404_not_silently_dropped(self):
+        response = self.client.get(
+            self.sort_url("?focus={}".format(self.their_char.id)))
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_malformed_focus_falls_back_to_no_focus(self):
+        response = self.client.get(self.sort_url("?focus=Carol"))
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.context["focus"])
+
+    def test_answering_a_comparison_keeps_the_run_and_its_opening_weight(self):
+        query = "?focus={}&w0=1.5".format(self.chars[0].id)
+        response = self.client.post(
+            self.sort_url(query),
+            {"char1": str(self.chars[0].id), "char2": str(self.chars[1].id),
+             "sort": "1"})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("focus={}".format(self.chars[0].id), response.url)
+        self.assertIn("w0=1.5", response.url)
+
+    def test_undo_keeps_the_run(self):
+        record = controller.models.SortRecord.objects.create(
+            charlist=self.charlist, char1=self.chars[0], char2=self.chars[1],
+            value=1)
+        response = self.client.post(
+            reverse("sorterinput:undo", args=(self.charlist.id,))
+            + "?focus={}&w0=1.5".format(self.chars[0].id),
+            {"last": str(record.id)})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("focus={}".format(self.chars[0].id), response.url)
+
+    def test_the_first_request_of_a_run_is_never_exhausted(self):
+        response = self.client.get(
+            self.sort_url("?focus={}".format(self.chars[0].id)))
+        self.assertFalse(response.context["focus_exhausted"])
+
+    def test_a_collapsed_weight_suggests_stopping(self):
+        response = self.client.get(
+            self.sort_url("?focus={}&w0=1e9".format(self.chars[0].id)))
+        self.assertTrue(response.context["focus_exhausted"])
+        self.assertContains(response, "will tell you little more")
+
+    def test_an_insertion_sort_list_offers_no_focus_links(self):
+        charlist = CharacterList.objects.create(
+            owner=self.owner, title="Insertion",
+            controller_type=CharacterList.INSERTION)
+        for name in ("Alice", "Bob", "Carol"):
+            Character.objects.create(
+                characterlist=charlist, name=name, fandom="Fandom")
+        response = self.client.get(
+            reverse("sorterinput:sortlist", args=(charlist.id,)))
+        self.assertFalse(response.context["can_focus"])
+        self.assertNotContains(response, "against the whole list")
+
+    def test_a_run_offers_only_the_opponent_as_the_next_focus(self):
+        response = self.client.get(
+            self.sort_url("?focus={}".format(self.chars[0].id)))
+        char2 = response.context["char2"]
+        self.assertContains(response, "?focus={}".format(char2.id))
+        self.assertNotContains(
+            response, "?focus={}\"".format(self.chars[0].id))
+
+    def test_undo_with_a_foreign_focus_id_keeps_the_record(self):
+        record = controller.models.SortRecord.objects.create(
+            charlist=self.charlist, char1=self.chars[0], char2=self.chars[1],
+            value=1)
+        response = self.client.post(
+            reverse("sorterinput:undo", args=(self.charlist.id,))
+            + "?focus={}".format(self.their_char.id),
+            {"last": str(record.id)})
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(controller.models.SortRecord.objects.filter(
+            pk=record.pk).exists())
