@@ -23,10 +23,6 @@ Sorting {{ charlist.title }} | Character Sorter
 {% if focus %}
 <p class="focus-banner">Ranking <strong>{{ focus.name }}</strong> &mdash;
     <a href="{% url 'sorterinput:sortlist' charlist.id %}">stop</a></p>
-{% if focus_exhausted %}
-<p class="focus-banner">No close matchup is left unused, so further
-    comparisons will tell you little more about {{ focus.name }}.</p>
-{% endif %}
 {% endif %}
 <form id="sort_form" action="{% url 'sorterinput:sortlist' charlist.id %}{{ focus_query }}" method="post">
     {% csrf_token %}
